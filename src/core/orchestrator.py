@@ -1,7 +1,7 @@
-
 from sqlalchemy.orm import Session
 from core.llm_service import LLMService
 from database.models import LogEntry
+
 
 class WardenOrchestrator:
     """Orchestrates the AI Warden's response to player input."""
@@ -24,7 +24,7 @@ class WardenOrchestrator:
         else:
             # Pass natural language to the LLM
             warden_response = self.llm_service.generate_response(player_input)
-        
+
         # 3. Log the Warden's response
         if warden_response:
             warden_log = LogEntry(source="Warden", content=warden_response)

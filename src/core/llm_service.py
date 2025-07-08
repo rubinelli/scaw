@@ -1,6 +1,6 @@
-
 import os
 import google.generativeai as genai
+
 
 class LLMService:
     """Service for interacting with a Large Language Model."""
@@ -9,8 +9,8 @@ class LLMService:
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set.")
-        genai.configure(api_key=self.api_key) # type: ignore
-        self.model = genai.GenerativeModel('gemini-2.5-flash-lite-preview-06-17') # type: ignore
+        genai.configure(api_key=self.api_key)  # type: ignore
+        self.model = genai.GenerativeModel("gemini-2.5-flash-lite-preview-06-17")  # type: ignore
 
     def generate_response(self, prompt: str) -> str:
         """Generates a response from the LLM based on the prompt."""

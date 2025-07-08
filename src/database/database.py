@@ -7,6 +7,7 @@ DATABASE_URL = "sqlite:///active_game.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db():
     """Provides a database session, ensuring it's closed after use."""
     db = SessionLocal()
@@ -14,6 +15,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 def dispose_engine():
     """Explicitly disposes of the engine's connection pool.

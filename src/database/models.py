@@ -1,6 +1,5 @@
 import datetime
 from sqlalchemy import (
-    create_engine,
     Column,
     Integer,
     String,
@@ -12,8 +11,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class GameEntity(Base):
     __tablename__ = "game_entity"
@@ -40,11 +41,12 @@ class GameEntity(Base):
     omen = Column(String)
     is_retired = Column(Boolean, default=False)
     attacks = Column(JSON)
-    
+
     current_map_point_id = Column(Integer, ForeignKey("map_point.id"))
     current_map_point = relationship("MapPoint", back_populates="entities")
-    
+
     items = relationship("Item", back_populates="owner")
+
 
 class Item(Base):
     __tablename__ = "item"
@@ -55,12 +57,13 @@ class Item(Base):
     quantity = Column(Integer, default=1)
     slots = Column(Integer, default=1)
     tags = Column(JSON)
-    
+
     owner_entity_id = Column(Integer, ForeignKey("game_entity.id"))
     owner = relationship("GameEntity", back_populates="items")
-    
+
     location_id = Column(Integer, ForeignKey("location.id"))
     location = relationship("Location", back_populates="items")
+
 
 class LogEntry(Base):
     __tablename__ = "log_entry"
@@ -71,6 +74,7 @@ class LogEntry(Base):
     content = Column(Text, nullable=False)
     metadata_dict = Column(JSON)
     involved_entities = Column(JSON)
+
 
 class MapPoint(Base):
     __tablename__ = "map_point"
@@ -83,12 +87,17 @@ class MapPoint(Base):
     status = Column(String, nullable=False)  # "hidden", "rumored", "known", "explored"
     position_x = Column(Integer)
     position_y = Column(Integer)
-    
+
     entities = relationship("GameEntity", back_populates="current_map_point")
     locations = relationship("Location", back_populates="map_point")
-    
-    paths_from = relationship("Path", foreign_keys="Path.start_point_id", back_populates="start_point")
-    paths_to = relationship("Path", foreign_keys="Path.end_point_id", back_populates="end_point")
+
+    paths_from = relationship(
+        "Path", foreign_keys="Path.start_point_id", back_populates="start_point"
+    )
+    paths_to = relationship(
+        "Path", foreign_keys="Path.end_point_id", back_populates="end_point"
+    )
+
 
 class Location(Base):
     __tablename__ = "location"
@@ -97,11 +106,12 @@ class Location(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
     contents = Column(JSON)
-    
+
     map_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
     map_point = relationship("MapPoint", back_populates="locations")
-    
+
     items = relationship("Item", back_populates="location")
+
 
 class Path(Base):
     __tablename__ = "path"
@@ -111,9 +121,13 @@ class Path(Base):
     status = Column(String, nullable=False)  # "hidden", "known", "explored"
     watches = Column(Integer, default=1)
     feature = Column(String)
-    
+
     start_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
     end_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
-    
-    start_point = relationship("MapPoint", foreign_keys=[start_point_id], back_populates="paths_from")
-    end_point = relationship("MapPoint", foreign_keys=[end_point_id], back_populates="paths_to")
+
+    start_point = relationship(
+        "MapPoint", foreign_keys=[start_point_id], back_populates="paths_from"
+    )
+    end_point = relationship(
+        "MapPoint", foreign_keys=[end_point_id], back_populates="paths_to"
+    )
