@@ -111,7 +111,7 @@ The Solo Cairn AI Warden is a Python application built with the Streamlit framew
 *   **`GameEntity`**: Represents any character, NPC, or monster.
     *   `id: int` (PK)
     *   `name: str`, `entity_type: str` ("Character", "NPC", "Monster")
-    *   `hp: int`, `max_hp: int`, `strength: int`, `dexterity: int`, `willpower: int`, `fatigue: int`
+    *   `hp: int`, `max_hp: int`, `strength: int`, `max_strength: int`, `dexterity: int`, `max_dexterity: int`, `willpower: int`, `max_willpower: int`, `fatigue: int`
     *   `armor: int`, `disposition: str` ("friendly", "neutral", "hostile")
     *   `age: int`, `pronouns: str`, `description: str`, `background: str`, `bond: str`, `omen: str`
     *   `is_retired: bool`
