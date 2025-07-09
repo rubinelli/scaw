@@ -1,11 +1,9 @@
-import sys
 import os
 
 # Add the current dir to sys.path
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import streamlit as st
-import os
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
 from sqlalchemy import create_engine

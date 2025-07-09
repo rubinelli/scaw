@@ -47,7 +47,7 @@ This document outlines a phased, iterative development plan for the Solo Cairn A
 - **Dependencies:** [1]
 - **Description:** Implement the `LLMService` with a single, default provider (Gemini) and test its connectivity.
 
-### **Task 7: Develop Core Warden Orchestrator & Slash Command Parser** [Status: pending]
+### **Task 7: Develop Core Warden Orchestrator & Slash Command Parser** [Status: WIP]
 - **Priority:** high
 - **Dependencies:** [5, 6]
 - **Description:** Build the core `WardenOrchestrator` and a robust slash command parser to handle player input.
