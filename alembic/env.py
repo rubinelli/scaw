@@ -23,7 +23,7 @@ sys.path.insert(
 )
 
 # Import your models' Base here
-from database.models import Base #noqa: E402
+from database.models import Base  # noqa: E402
 
 target_metadata = Base.metadata
 

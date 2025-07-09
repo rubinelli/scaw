@@ -12,9 +12,9 @@ class WardenOrchestrator:
 
     def __init__(self, llm_service: LLMService):
         self.llm_service = llm_service
-        self.command_handlers: Dict[
-            str, Callable[..., str]
-        ] = self._register_command_handlers()
+        self.command_handlers: Dict[str, Callable[..., str]] = (
+            self._register_command_handlers()
+        )
 
     def _register_command_handlers(self) -> Dict[str, Callable[..., str]]:
         """Creates a dispatch table for slash commands."""
@@ -28,17 +28,17 @@ class WardenOrchestrator:
 
     def _parse_command(self, player_input: str) -> Tuple[str, List[str]]:
         """Parses a slash command and its arguments.
-        
+
         Handles quoted strings for multi-word arguments.
         Example: /attack "Cave Lizard" with sword
         Returns: ("attack", ["Cave Lizard", "with", "sword"])
         """
         if not player_input.startswith("/"):
-            return "", [] # Not a slash command
+            return "", []  # Not a slash command
 
         try:
             parts = shlex.split(player_input)
-            if not parts: # Handle empty input after shlex.split
+            if not parts:  # Handle empty input after shlex.split
                 return "", []
             command = parts[0][1:].lower()  # Remove slash and lowercase
             args = parts[1:]
@@ -74,7 +74,7 @@ class WardenOrchestrator:
 
     def _handle_look(self, db: Session, *args: str) -> str:
         """Handles the /look command."""
-        character_id = st.session_state.get('character_id')
+        character_id = st.session_state.get("character_id")
         if not character_id:
             return "Error: Character not found in session."
 
@@ -90,48 +90,78 @@ class WardenOrchestrator:
             ]
 
             # Entities at this location (excluding the player character)
-            entities_here = db.query(GameEntity).filter(
-                GameEntity.current_map_point_id == current_map_point.id,
-                GameEntity.id != character_id
-            ).all()
+            entities_here = (
+                db.query(GameEntity)
+                .filter(
+                    GameEntity.current_map_point_id == current_map_point.id,
+                    GameEntity.id != character_id,
+                )
+                .all()
+            )
             if entities_here:
                 entity_names = [e.name for e in entities_here]
                 description_parts.append(f"You see: {', '.join(entity_names)}.")
 
             # Items at this location (not in anyone's inventory)
-            items_here = db.query(Item).filter(
-                Item.location_id == current_map_point.id,
-                Item.owner_entity_id == None # Items not owned by any entity
-            ).all()
+            items_here = (
+                db.query(Item)
+                .filter(
+                    Item.location_id == current_map_point.id,
+                    Item.owner_entity_id == None,  # noqa E711 Items not owned by any entity
+                )
+                .all()
+            )
             if items_here:
                 item_names = [i.name for i in items_here]
-                description_parts.append(f"On the ground, you see: {', '.join(item_names)}.")
+                description_parts.append(
+                    f"On the ground, you see: {', '.join(item_names)}."
+                )
 
             prompt = " ".join(description_parts)
-            return self.llm_service.generate_response(f"Describe the following scene in a vivid, concise way for a text-based adventure game: {prompt}")
+            return self.llm_service.generate_response(
+                f"Describe the following scene in a vivid, concise way for a text-based adventure game: {prompt}"
+            )
 
         else:  # /look <target>
             target_name = " ".join(args).strip().lower()
 
             # Check for entities
-            target_entity = db.query(GameEntity).filter(
-                GameEntity.current_map_point_id == current_map_point.id,
-                GameEntity.name.ilike(target_name)
-            ).first()
+            target_entity = (
+                db.query(GameEntity)
+                .filter(
+                    GameEntity.current_map_point_id == current_map_point.id,
+                    GameEntity.name.ilike(target_name),
+                )
+                .first()
+            )
             if target_entity:
                 prompt = f"Describe {target_entity.name}, a {target_entity.entity_type}. Their description is: {target_entity.description or 'No specific description available.'} They have {target_entity.hp} HP, {target_entity.strength} STR, {target_entity.dexterity} DEX, {target_entity.willpower} WIL. Their disposition is {target_entity.disposition}."
-                return self.llm_service.generate_response(f"Describe the following character in a vivid, concise way for a text-based adventure game: {prompt}")
-
+                description = self.llm_service.generate_response(
+                    f"Describe the following character in a vivid, concise way for a text-based adventure game: {prompt}"
+                )
+                if not target_entity.description:
+                    target_entity.description = description
+                    db.commit()  # Save the generated description to the database
+                return description
             # Check for items
-            target_item = db.query(Item).filter(
-                Item.location_id == current_map_point.id,
-                Item.owner_entity_id == None, # Only items on the ground
-                Item.name.ilike(target_name)
-            ).first()
+            target_item = (
+                db.query(Item)
+                .filter(
+                    Item.location_id == current_map_point.id,
+                    Item.owner_entity_id == None,  # noqa E711 Only items on the ground
+                    Item.name.ilike(target_name),
+                )
+                .first()
+            )
             if target_item:
                 prompt = f"Describe the item: {target_item.name}. Its description is: {target_item.description or 'No specific description available.'} It takes {target_item.slots} inventory slots."
-                return self.llm_service.generate_response(f"Describe the following item in a vivid, concise way for a text-based adventure game: {prompt}")
-
+                description = self.llm_service.generate_response(
+                    f"Describe the following item in a vivid, concise way for a text-based adventure game: {prompt}"
+                )
+                if not target_item.description:
+                    target_item.description = description
+                    db.commit()  # Save the generated description to the database
+                return description
             return f"You don't see '{target_name}' here."
 
     def _handle_go(self, db: Session, *args: str) -> str:

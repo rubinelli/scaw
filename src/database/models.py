@@ -124,7 +124,9 @@ class Location(Base):
     contents = Column(JSON)
 
     map_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
-    map_point = relationship("MapPoint", back_populates="locations", foreign_keys=[map_point_id])
+    map_point = relationship(
+        "MapPoint", back_populates="locations", foreign_keys=[map_point_id]
+    )
 
     items = relationship("Item", back_populates="location")
     entities = relationship("GameEntity", back_populates="current_location")

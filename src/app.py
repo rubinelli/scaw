@@ -1,7 +1,5 @@
 import os
 
-# Add the current dir to sys.path
-#sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 import streamlit as st
 from alembic.config import Config as AlembicConfig
@@ -67,25 +65,33 @@ def show_welcome_screen():
                 new_character = GameEntity(
                     name="Grimgar",
                     entity_type="Character",
-                    hp=3, max_hp=3, 
-                    strength=12, max_strength=12,
-                    dexterity=10, max_dexterity=10,
-                    willpower=8, max_willpower=8
+                    hp=3,
+                    max_hp=3,
+                    strength=12,
+                    max_strength=12,
+                    dexterity=10,
+                    max_dexterity=10,
+                    willpower=8,
+                    max_willpower=8,
                 )
                 # Assign a starting location
-                start_map_point = db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                start_map_point = (
+                    db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                )
                 if start_map_point:
                     new_character.current_map_point_id = start_map_point.id
                     # Assign the character to the default location of the starting map point
                     if start_map_point.default_location:
-                        new_character.current_location_id = start_map_point.default_location.id
+                        new_character.current_location_id = (
+                            start_map_point.default_location.id
+                        )
 
                 db.add(new_character)
                 db.commit()
                 db.refresh(new_character)
-                st.session_state['character_id'] = new_character.id
+                st.session_state["character_id"] = new_character.id
 
-            st.session_state['game_active'] = True
+            st.session_state["game_active"] = True
             st.rerun()
 
     with col2:
@@ -123,8 +129,12 @@ def show_main_layout():
         col2.metric("Fatigue", character.fatigue)
         vitals_container.divider()
         vitals_container.metric("STR", f"{character.strength}/{character.max_strength}")
-        vitals_container.metric("DEX", f"{character.dexterity}/{character.max_dexterity}")
-        vitals_container.metric("WIL", f"{character.willpower}/{character.max_willpower}")
+        vitals_container.metric(
+            "DEX", f"{character.dexterity}/{character.max_dexterity}"
+        )
+        vitals_container.metric(
+            "WIL", f"{character.willpower}/{character.max_willpower}"
+        )
 
         # InventoryView Placeholder
         st.header("Inventory")
@@ -184,7 +194,7 @@ def main():
                 db.query(GameEntity)
                 .filter(
                     GameEntity.entity_type == "Character",
-                    GameEntity.is_retired == False, # noqa: E712
+                    GameEntity.is_retired == False,  # noqa: E712
                 )
                 .first()
             )
