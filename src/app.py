@@ -6,8 +6,9 @@ from sqlalchemy import create_engine
 
 from core.llm_service import LLMService
 from core.orchestrator import WardenOrchestrator
+from core.world_generator import WorldGenerator
 from database.database import get_db, dispose_engine
-from database.models import GameEntity, LogEntry, Base
+from database.models import GameEntity, LogEntry, Base, MapPoint
 
 DB_FILE = "active_game.db"
 
@@ -54,25 +55,30 @@ def show_welcome_screen():
         if st.button("New Game", use_container_width=True):
             create_new_database()
             with next(get_db()) as db:
-                # For now, create a simple default character
+                # Generate the world
+                world_generator = WorldGenerator(db)
+                world_generator.generate_new_world()
+
+                # Create the character
                 new_character = GameEntity(
                     name="Grimgar",
                     entity_type="Character",
-                    hp=3,
-                    max_hp=3,
-                    strength=12,
-                    max_strength=12,
-                    dexterity=10,
-                    max_dexterity=10,
-                    willpower=8,
-                    max_willpower=8,
+                    hp=3, max_hp=3, 
+                    strength=12, max_strength=12,
+                    dexterity=10, max_dexterity=10,
+                    willpower=8, max_willpower=8
                 )
+                # Assign a starting location
+                start_location = db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                if start_location:
+                    new_character.current_map_point_id = start_location.id
+
                 db.add(new_character)
                 db.commit()
                 db.refresh(new_character)
-                st.session_state["character_id"] = new_character.id
+                st.session_state['character_id'] = new_character.id
 
-            st.session_state["game_active"] = True
+            st.session_state['game_active'] = True
             st.rerun()
 
     with col2:

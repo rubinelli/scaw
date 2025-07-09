@@ -11,9 +11,16 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
 
-
 class Base(DeclarativeBase):
     pass
+
+class WorldState(Base):
+    __tablename__ = "world_state"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String, unique=True, nullable=False)
+    value = Column(JSON)
+
 
 
 class GameEntity(Base):
