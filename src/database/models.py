@@ -11,8 +11,10 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, DeclarativeBase
 
+
 class Base(DeclarativeBase):
     pass
+
 
 class WorldState(Base):
     __tablename__ = "world_state"
@@ -20,7 +22,6 @@ class WorldState(Base):
     id = Column(Integer, primary_key=True)
     key = Column(String, unique=True, nullable=False)
     value = Column(JSON)
-
 
 
 class GameEntity(Base):
@@ -51,6 +52,9 @@ class GameEntity(Base):
 
     current_map_point_id = Column(Integer, ForeignKey("map_point.id"))
     current_map_point = relationship("MapPoint", back_populates="entities")
+
+    current_location_id = Column(Integer, ForeignKey("location.id"), nullable=True)
+    current_location = relationship("Location", back_populates="entities")
 
     items = relationship("Item", back_populates="owner")
 
@@ -95,8 +99,13 @@ class MapPoint(Base):
     position_x = Column(Integer)
     position_y = Column(Integer)
 
+    default_location_id = Column(Integer, ForeignKey("location.id"), nullable=True)
+    default_location = relationship("Location", foreign_keys=[default_location_id])
+
     entities = relationship("GameEntity", back_populates="current_map_point")
-    locations = relationship("Location", back_populates="map_point")
+    locations = relationship(
+        "Location", back_populates="map_point", foreign_keys="Location.map_point_id"
+    )
 
     paths_from = relationship(
         "Path", foreign_keys="Path.start_point_id", back_populates="start_point"
@@ -115,9 +124,43 @@ class Location(Base):
     contents = Column(JSON)
 
     map_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
-    map_point = relationship("MapPoint", back_populates="locations")
+    map_point = relationship("MapPoint", back_populates="locations", foreign_keys=[map_point_id])
 
     items = relationship("Item", back_populates="location")
+    entities = relationship("GameEntity", back_populates="current_location")
+
+    connections_from = relationship(
+        "LocationConnection",
+        foreign_keys="LocationConnection.source_location_id",
+        back_populates="source_location",
+        cascade="all, delete-orphan",
+    )
+    connections_to = relationship(
+        "LocationConnection",
+        foreign_keys="LocationConnection.destination_location_id",
+        back_populates="destination_location",
+        cascade="all, delete-orphan",
+    )
+
+
+class LocationConnection(Base):
+    __tablename__ = "location_connection"
+
+    id = Column(Integer, primary_key=True)
+    description = Column(String)
+    is_two_way = Column(Boolean, default=True)
+
+    source_location_id = Column(Integer, ForeignKey("location.id"), nullable=False)
+    destination_location_id = Column(Integer, ForeignKey("location.id"), nullable=False)
+
+    source_location = relationship(
+        "Location", foreign_keys=[source_location_id], back_populates="connections_from"
+    )
+    destination_location = relationship(
+        "Location",
+        foreign_keys=[destination_location_id],
+        back_populates="connections_to",
+    )
 
 
 class Path(Base):

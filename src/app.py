@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the current dir to sys.path
+#sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
+
 import streamlit as st
 import os
 from alembic.config import Config as AlembicConfig
@@ -69,9 +75,12 @@ def show_welcome_screen():
                     willpower=8, max_willpower=8
                 )
                 # Assign a starting location
-                start_location = db.query(MapPoint).filter(MapPoint.status == "explored").first()
-                if start_location:
-                    new_character.current_map_point_id = start_location.id
+                start_map_point = db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                if start_map_point:
+                    new_character.current_map_point_id = start_map_point.id
+                    # Assign the character to the default location of the starting map point
+                    if start_map_point.default_location:
+                        new_character.current_location_id = start_map_point.default_location.id
 
                 db.add(new_character)
                 db.commit()
@@ -111,11 +120,13 @@ def show_main_layout():
         # VitalsView
         st.header(character.name)
         vitals_container = st.container(border=True)
-        col1, col2, col3, col4 = vitals_container.columns(4)
+        col1, col2 = vitals_container.columns(2)
         col1.metric("HP", f"{character.hp}/{character.max_hp}")
-        col2.metric("STR", f"{character.strength}/{character.max_strength}")
-        col3.metric("DEX", f"{character.dexterity}/{character.max_dexterity}")
-        col4.metric("WIL", f"{character.willpower}/{character.max_willpower}")
+        col2.metric("Fatigue", character.fatigue)
+        vitals_container.divider()
+        vitals_container.metric("STR", f"{character.strength}/{character.max_strength}")
+        vitals_container.metric("DEX", f"{character.dexterity}/{character.max_dexterity}")
+        vitals_container.metric("WIL", f"{character.willpower}/{character.max_willpower}")
 
         # InventoryView Placeholder
         st.header("Inventory")

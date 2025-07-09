@@ -1,4 +1,4 @@
-# Cairn Solo Warden - Player's Manual
+# Solo Cairn AI Warden - Player's Manual
 
 **Version 1.0**
 

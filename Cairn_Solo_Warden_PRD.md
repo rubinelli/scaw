@@ -117,6 +117,7 @@ The Solo Cairn AI Warden is a Python application built with the Streamlit framew
     *   `is_retired: bool`
     *   `attacks: JSON` (e.g., `[{"name": "Bite", "damage": "1d6"}]`)
     *   `current_map_point_id: int` (FK to `MapPoint`)
+    *   `current_location_id: int` (FK to `Location`, nullable)
 
 *   **`Item`**:
     *   `id: int` (PK), `name: str`, `description: str`, `quantity: int`
@@ -134,13 +135,21 @@ The Solo Cairn AI Warden is a Python application built with the Streamlit framew
     *   `status: str` ("hidden", "rumored", "known", "explored")
     *   `position_x: int`
     *   `position_y: int`
+    *   `default_location_id: int` (FK to `Location`, nullable)
     
 *   **`Location`**: A specific room or area within a `MapPoint`.
-    *   `id: int` (PK), `map_point_id: int` (FK)
+    *   `id: int` (PK), `map_point_id: int` (FK to `MapPoint`)
     *   `name: str`, `description: str`, `contents: list[str]`
 
+*   **`LocationConnection`**: Represents a path or connection between two `Location`s within the same `MapPoint`.
+    *   `id: int` (PK)
+    *   `source_location_id: int` (FK to `Location`)
+    *   `destination_location_id: int` (FK to `Location`)
+    *   `description: str` (e.g., "a narrow corridor", "a sturdy wooden door", "a rickety rope bridge")
+    *   `is_two_way: bool` (defaults to True)
+
 *   **`Path`**: A connection between two `MapPoints`.
-    *   `id: int` (PK), `start_point_id: int` (FK), `end_point_id: int` (FK)
+    *   `id: int` (PK), `start_point_id: int` (FK to `MapPoint`), `end_point_id: int` (FK to `MapPoint`)
     *   `type: str` ("Standard", "Hidden", "Conditional")
     *   `status: str` ("hidden", "known", "explored")
     *   `watches: int`, `feature: str`

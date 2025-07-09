@@ -1,7 +1,7 @@
 
 import random
 from sqlalchemy.orm import Session
-from database.models import WorldState, MapPoint, Path
+from database.models import WorldState, MapPoint, Path, Location
 
 # Data from Warden's Guide
 CULTURE = {
@@ -405,6 +405,16 @@ class WorldGenerator:
                 position_x=random.randint(50, 750),
                 position_y=random.randint(50, 450)
             )
+            
+            # Create a default location for the MapPoint
+            default_location = Location(
+                name=f"Entrance to {new_poi.name}",
+                description=f"The main entrance to {new_poi.name}.",
+                contents=[]
+            )
+            new_poi.locations.append(default_location) # Add location to the map_point's locations
+            new_poi.default_location = default_location # Set as default location
+
             pois.append(new_poi)
         
         # Set starting POI
