@@ -47,16 +47,17 @@ This document outlines a phased, iterative development plan for the Solo Cairn A
 - **Dependencies:** [1]
 - **Description:** Implement the `LLMService` with a single, default provider (Gemini) and test its connectivity.
 
-### **Task 7: Develop Core Warden Orchestrator & Slash Command Parser** [Status: WIP]
+### **Task 7: Develop Core Warden Orchestrator & Tool-Calling Loop** [Status: WIP]
 - **Priority:** high
 - **Dependencies:** [5, 6]
-- **Description:** Build the core `WardenOrchestrator` and a robust slash command parser to handle player input.
+- **Description:** Build the core `WardenOrchestrator` to interpret natural language input and use a tool-calling LLM to execute game actions.
 - **Subtasks:**
     - **7.1: Create WardenOrchestrator Class:** Define the main class structure.
-    - **7.2: Implement Slash Command Parser:** Create a function within the orchestrator that splits input into a command and arguments (e.g., `/attack 'Cave Lizard'` -> `command='attack'`, `args=['Cave Lizard']`).
-    - **7.3: Implement Command Handlers:** Create a dispatch system (e.g., a dictionary) that maps command strings to specific handler methods (e.g., `_handle_attack`, `_handle_look`).
-    - **7.4: Integrate LLMService:** Ensure that any input *not* recognized as a command is passed to the LLM service.
-- **Test Strategy:** Write unit tests to verify the parser correctly handles various command formats. Test that unrecognized commands are passed to the LLM.
+    - **7.2: Define "World Tools":** Create a set of simple, powerful functions in `src/core/world_tools.py` that represent fundamental game actions (e.g., `roll_dice`, `deal_damage`, `move_character`).
+    - **7.3: Implement Tool-Calling Loop:** The orchestrator will pass the player's natural language input and the available "World Tools" to the `LLMService`.
+    - **7.4: Implement Tool Execution:** The orchestrator will receive the LLM's chosen tool and arguments, execute the corresponding Python function, and update the game state.
+    - **7.5: Synthesize Narrative:** The orchestrator will take the result of the executed tool and use the `LLMService` to generate a narrative description of the outcome for the player.
+- **Test Strategy:** Write unit tests for each "World Tool". Write integration tests to verify that natural language commands (e.g., "I attack the goblin") correctly trigger the appropriate tool-calling sequence and state changes.
 
 ### **Task 8: Implement Core Combat & Healing Loop** [Status: pending]
 - **Priority:** high

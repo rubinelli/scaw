@@ -36,7 +36,7 @@ The Solo Cairn AI Warden is a Python application built with the Streamlit framew
     *   **Adventure Site Generation:** Generating sites using the full `Dungeon Seed`, `Creator`, and `Purpose` tables to create unique locations.
     *   **Gameplay Procedures:** Automatically rolling on `Dungeon Events` and `Wilderness Events` tables, and using the `Reactions` table for NPCs.
 *   **As a player, I want the AI Warden to roleplay NPCs, describe locations, and adjudicate outcomes** based on the rules and the established game state.
-*   **As a player, I want to interact with the Warden through a Hybrid Input System**, combining immersive natural language (e.g., "I ask the farmer about the ruins") with precise slash commands for mechanical actions (e.g., `/attack 'Goblin'`, `/rest`, `/buy 'Sword'`).
+*   **As a player, I want to interact with the Warden through a natural language interface**, allowing me to describe my actions in plain English (e.g., "I ask the farmer about the ruins," "I attack the goblin with my sword," "I try to buy a sword").
 *   **As a player, I want to be prompted by the Warden when a save is required**, and then be able to **click a button in the UI to initiate the roll**, giving me a sense of ownership over the outcome. The result will then be displayed narratively.
 
 ### 2.3. Character Sheet

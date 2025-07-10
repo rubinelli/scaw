@@ -71,70 +71,24 @@ Once your character is created, you will find yourself in the game world. The Wa
 
 ---
 
-## 3. How to Interact: The Hybrid Input System
+## 3. How to Interact: Natural Language
 
-You control your character using a hybrid system of natural language and slash commands.
+You control your character by describing what you want to do in plain, natural language. The AI Warden is designed to understand your intent and translate it into game mechanics. There are no slash commands to memorize.
 
-*   **Natural Language:** For most actions, simply describe what you want to do in plain English. This is best for role-playing, conversation, and creative interactions.
+Simply type what your character does, says, or thinks in the `UserInputBar`.
+
+### Guiding Principles
+
+*   **Be direct:** State your action clearly.
     *   `I search the desk for hidden drawers.`
+    *   `I attack the Cave Lizard with my spear.`
     *   `I ask the blacksmith if she has seen a woman in a blue cloak.`
-    *   `I try to climb the ivy-covered wall.`
+*   **Be descriptive:** The more detail you provide, the better the Warden can narrate the outcome.
+    *   `I try to climb the ivy-covered wall, looking for handholds in the crumbling stone.`
+    *   `I offer the guard a waterskin and a friendly smile.`
+*   **Interact with the world:** You can interact with anything the Warden describes. If there's a strange altar, you can examine it. If there's an NPC, you can talk to them.
+    *   `I read the inscription on the strange altar.`
+    *   `I travel to the Whispering Hills.`
+    *   `I make camp for the night.`
 
-*   **Slash Commands:** For precise, mechanical actions, slash commands provide clarity and ensure the Warden understands your intent perfectly. This is the preferred method for combat, inventory management, and using specific game functions.
-
----
-
-## 4. Slash Command Reference
-
-Here is a detailed list of available slash commands. Arguments in `< >` are required, while arguments in `[ ]` are optional.
-
-### Core Actions
-
-*   `/say <message>`: Broadcasts a message to be heard by anyone nearby. Use this for shouting or making general statements. For conversations, it's often more natural to just type the dialogue.
-    *   `/say Hello! Is anyone in there?`
-*   `/do <action>` or `/action <action>`: Use to perform a specific, non-standard action. It helps clarify your intent to the Warden.
-    *   `/do smear mud on my face for camouflage`
-*   `/look [target]` or `/examine [target]`: Observe your immediate surroundings or a specific target (object, creature, feature). If no target is specified, the Warden describes the general area.
-    *   `/look`
-    *   `/examine the strange altar`
-*   `/attack <target>`: Declare an attack against a specific target. Combat is fast and dangerous.
-    *   `/attack Cave Lizard`
-
-### Movement & Time
-
-*   `/travel <location name>`: Initiate travel to an adjacent, named location on the `MapView`. The Warden will calculate the time in `Watches`.
-    *   `/travel 'The Whispering Hills'`
-*   `/rest`: Spend a few moments to catch your breath and recover all lost HP. This is not possible in dangerous situations.
-*   `/makecamp`: Set up camp for a full 8-hour watch. This is required to heal `Fatigue`, consume rations, and prepare for the next day. This is the primary way to advance time.
-
-### Character & Inventory
-
-*   `/inventory` or `/inv`: Displays a detailed list of your inventory in the `GameLogView`.
-*   `/use <item> [on target]`: Use an item from your inventory. If the item is meant to be used on something or someone, specify the target.
-    *   `/use Healing Salve on myself`
-    *   `/use Iron Spike on the wooden door`
-*   `/drop <item>`: Drop an item from your inventory onto the ground.
-*   `/equip <item>`: Equip a weapon or piece of armor.
-*   `/unequip <item>`: Unequip a weapon or piece of armor.
-
-### Social & Commerce
-
-*   `/talk <target>`: Initiate a direct conversation with an NPC.
-    *   `/talk Elara the blacksmith`
-*   `/trade <item> for <item> with <target>`: Propose a trade with an NPC.
-    *   `/trade my silver ring for her lantern with Elara`
-*   `/buy <item>`: Attempt to purchase an item from a merchant.
-    *   `/buy Short Sword`
-*   `/sell <item>`: Attempt to sell an item to a merchant.
-    *   `/sell my extra rope`
-
-### Meta & Utility
-
-*   `/help [command]`: Displays a list of all slash commands, or detailed information about a specific command.
-*   `/codex [search term]`: Opens the Codex view. If a search term is provided, it searches your Codex for relevant entries (NPCs, Lore, etc.).
-    *   `/codex Elara`
-*   `/oracle <table name>`: Opens the Oracle panel. If a table name is provided, it rolls on that specific table and displays the result.
-    *   `/oracle Dungeon Seed`
-*   `/settings`: Opens the application settings menu.
-*   `/gen_image [prompt]`: Generates an image based on the Warden's last description. You can optionally provide your own prompt to guide the generation.
-    *   `/gen_image a close up of the rusty, cursed dagger`
+The Warden will interpret your input, make any necessary dice rolls behind the scenes (which will be noted in the log), and describe the outcome. The goal is to make your interaction feel like you're telling a story, with the Warden as your collaborative partner.
