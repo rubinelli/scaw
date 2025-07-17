@@ -70,23 +70,34 @@ def test_npc_reaction(orchestrator, db_session):
     map_point = MapPoint(name="Dark Cave", status="known")
     location = Location(name="Cave Interior", description="A dark cave.", map_point=map_point)
     player = GameEntity(
-        name="Player", entity_type="Character", hp=10, strength=10, current_location=location
+        name="Player",
+        entity_type="Character",
+        hp=10,
+        strength=10,
+        current_location=location,
+        attacks=[{"name": "Sword", "damage": "1d6"}],
     )
     goblin = GameEntity(
-        name="Goblin", entity_type="Monster", hp=5, strength=5, is_hostile=True, current_location=location
+        name="Goblin",
+        entity_type="Monster",
+        hp=5,
+        strength=5,
+        is_hostile=True,
+        current_location=location,
+        attacks=[{"name": "Club", "damage": "1d4"}],
     )
     db_session.add_all([map_point, location, player, goblin])
     db_session.commit()
 
     orchestrator.llm_service.choose_tool.return_value = {
         "name": "deal_damage",
-        "arguments": {"target_name": "Goblin", "damage_amount": 3},
+        "arguments": {"attacker_name": "Player", "target_name": "Goblin"},
     }
 
     orchestrator.handle_player_input("I attack the goblin!", db_session)
 
-    # Verify player's attack happened
-    assert goblin.hp == 2
+    # Verify player's attack happened (hp is less than initial)
+    assert goblin.hp < 5
 
     # Verify NPC attacked back
     assert player.hp < 10

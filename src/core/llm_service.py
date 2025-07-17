@@ -37,7 +37,8 @@ class LLMService:
             raise ValueError("GOOGLE_API_KEY environment variable not set.")
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(
-            "gemini-1.5-flash-latest", system_instruction=SYSTEM_PROMPT
+            # don't touch this model name, we know exactly what we are doing
+            "gemini-2.5-flash-lite-preview-06-17", system_instruction=SYSTEM_PROMPT
         )
 
     def choose_tool(

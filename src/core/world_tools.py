@@ -6,6 +6,7 @@ and the concrete game state stored in the database.
 
 import random
 import re
+import json
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -28,15 +29,20 @@ def _find_entity_by_name(db: Session, name: str) -> models.GameEntity | None:
 
 def roll_dice(dice_string: str) -> Dict[str, Any]:
     """
-    Rolls dice based on a standard dice string format (e.g., '1d6', '2d8+2', '1d20-1').
+    Rolls dice based on a standard dice string format (e.g., '1d6', '2d8+2', '1d20-1') or a fixed number.
 
     Args:
-        dice_string: The dice to roll, in standard notation.
+        dice_string: The dice to roll, in standard notation, or a string representing an integer.
 
     Returns:
         A dictionary containing the total result and the individual rolls.
     """
-    match = re.match(r"(\d+)d(\d+)([+-]\d+)?", dice_string.lower().replace(" ", ""))
+    dice_string = dice_string.lower().replace(" ", "")
+    if dice_string.isdigit():
+        total = int(dice_string)
+        return {"total": total, "rolls": [total], "modifier": 0, "final_result": total}
+
+    match = re.match(r"(\d+)d(\d+)([+-]\d+)?", dice_string)
     if not match:
         return {
             "error": "Invalid dice string format. Use format like '1d6' or '2d8+2'."
@@ -86,67 +92,86 @@ def get_character_sheet(db: Session, character_name: str) -> Dict[str, Any]:
     }
 
 
-def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, Any]:
+def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, Any]:
     """
-    Deals a specific amount of damage to a target entity.
+    Resolves an attack from an attacker to a target.
 
-    Damage is first applied to HP. If HP is depleted, the remaining damage
-    is applied to Strength (STR). If an attack reduces HP to exactly 0,
-    the character gets a Scar and their Max HP is reduced. If STR is
-    reduced to 0, the character is dead.
+    It finds the attacker's primary weapon, rolls the damage, and applies it
+    to the target, handling HP, Scars, and Strength loss.
 
     Args:
         db: The database session.
+        attacker_name: The name of the entity making the attack.
         target_name: The exact name of the target receiving damage.
-        damage_amount: The amount of damage to deal.
 
     Returns:
         A dictionary confirming the action and showing the target's new state.
     """
-    print(f"Dealing {damage_amount} damage to {target_name}...")
-    entity = _find_entity_by_name(db, target_name)
-    if not entity:
+    print(f"Resolving attack from {attacker_name} to {target_name}...")
+    attacker = _find_entity_by_name(db, attacker_name)
+    if not attacker:
+        return {"error": f"Attacker '{attacker_name}' not found."}
+
+    target = _find_entity_by_name(db, target_name)
+    if not target:
         return {"error": f"Target '{target_name}' not found."}
 
-    original_hp = entity.hp
-    original_strength = entity.strength
+    # Determine damage amount by rolling attacker's weapon dice
+    try:
+        # The 'attacks' attribute is stored as a JSON string in the DB
+        attacks_list = json.loads(attacker.attacks)
+        # Assuming the first attack in the list is the primary one
+        attack_info = attacks_list[0]
+        damage_dice = attack_info.get("damage", "1d4")  # Default to 1d4 if no damage specified
+    except (IndexError, TypeError, KeyError, json.JSONDecodeError):
+        damage_dice = "1d4" # Default if attacks are missing or malformed
+
+    damage_roll_result = roll_dice(damage_dice)
+    damage_amount = damage_roll_result.get("total", 0)
+
+
+    original_hp = target.hp
+    original_strength = target.strength
     received_scar = None
 
     # Check for a Scar before applying damage
     if original_hp > 0 and (original_hp - damage_amount) == 0:
         scar_description = f"A nasty gash across the face, a constant reminder of this day."
-        entity.scars = (
-            f"{entity.scars}\n{scar_description}" if entity.scars else scar_description
+        target.scars = (
+            f"{target.scars}\n{scar_description}" if target.scars else scar_description
         )
-        entity.max_hp = max(0, entity.max_hp - 1)  # Reduce max_hp, ensure it's not negative
+        target.max_hp = max(0, target.max_hp - 1)
         received_scar = scar_description
 
     # Apply damage to HP first
     hp_damage = min(original_hp, damage_amount)
-    entity.hp -= hp_damage
+    new_hp = original_hp - hp_damage
+    target.hp = new_hp
     remaining_damage = damage_amount - hp_damage
 
     # Apply remaining damage to Strength
     if remaining_damage > 0:
-        entity.strength -= remaining_damage
+        target.strength -= remaining_damage
 
     result = {
-        "target_name": entity.name,
+        "attacker_name": attacker.name,
+        "target_name": target.name,
+        "damage_roll": damage_dice,
         "damage_taken": damage_amount,
         "hp_lost": hp_damage,
-        "strength_lost": original_strength - entity.strength,
-        "new_hp": entity.hp,
-        "new_strength": entity.strength,
+        "strength_lost": original_strength - target.strength,
+        "new_hp": target.hp,
+        "new_strength": target.strength,
         "received_scar": received_scar,
         "is_dead": False,
     }
-    print(f"Result after damage: {result}")
+    print(f"Attack result: {result}")
 
     # Check for death
-    if entity.strength <= 0:
-        entity.is_retired = True  # Mark as dead/retired
+    if target.strength <= 0:
+        target.is_retired = True
         result["is_dead"] = True
-        result["final_state"] = f"{entity.name} has been slain."
+        result["final_state"] = f"{target.name} has been slain."
 
     return result
 

@@ -41,37 +41,40 @@ def test_get_character_sheet(db_session):
 
 
 def test_deal_damage(db_session):
-    char = GameEntity(
-        name="Test Character", entity_type="Character", hp=10, strength=12
+    attacker = GameEntity(
+        name="Attacker", entity_type="Character", attacks=[{"name": "Sword", "damage": "1d6"}]
     )
-    db_session.add(char)
+    target = GameEntity(
+        name="Target", entity_type="Monster", hp=10, strength=12
+    )
+    db_session.add_all([attacker, target])
     db_session.commit()
-    result = world_tools.deal_damage(db_session, "Test Character", 5)
-    assert result["new_hp"] == 5
+    result = world_tools.deal_damage(db_session, "Attacker", "Target")
+    assert result["new_hp"] < 10
     assert result["new_strength"] == 12
-    result = world_tools.deal_damage(db_session, "Test Character", 15)
-    assert result["new_hp"] == 0
-    assert result["new_strength"] == 2
-    assert result["is_dead"] == False  # noqa: E712
 
 
 def test_deal_damage_with_scar(db_session):
-    char = GameEntity(
-        name="Test Character", entity_type="Character", hp=5, max_hp=5, strength=10
+    attacker = GameEntity(
+        name="Attacker", entity_type="Character", attacks=[{"name": "Axe", "damage": "5"}]
     )
-    db_session.add(char)
+    target = GameEntity(
+        name="Target", entity_type="Monster", hp=5, max_hp=5, strength=10
+    )
+    db_session.add_all([attacker, target])
     db_session.commit()
 
     # Damage brings HP to exactly 0, should trigger a scar
-    result = world_tools.deal_damage(db_session, "Test Character", 5)
+    result = world_tools.deal_damage(db_session, "Attacker", "Target")
     assert result["new_hp"] == 0
     assert result["new_strength"] == 10
     assert result["received_scar"] is not None
-    assert char.max_hp == 4
-    assert char.scars is not None
+    assert target.max_hp == 4
+    assert target.scars is not None
 
     # Further damage should go to strength
-    result = world_tools.deal_damage(db_session, "Test Character", 3)
+    attacker.attacks = [{"name": "Axe", "damage": "3"}]
+    result = world_tools.deal_damage(db_session, "Attacker", "Target")
     assert result["new_hp"] == 0
     assert result["new_strength"] == 7
     assert result["received_scar"] is None

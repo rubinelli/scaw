@@ -92,7 +92,7 @@ class WardenOrchestrator:
             for npc in hostile_npcs:
                 # Simple NPC AI: always attack the player
                 attack_result = world_tools.deal_damage(
-                    db, target_name=player.name, damage_amount=world_tools.roll_dice("1d4")["total"]
+                    db, attacker_name=npc.name, target_name=player.name
                 )
                 npc_actions.append({npc.name: attack_result})
                 db.commit() # Commit each NPC action
