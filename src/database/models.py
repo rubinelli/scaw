@@ -48,6 +48,8 @@ class GameEntity(Base):
     bond = Column(String)
     omen = Column(String)
     is_retired = Column(Boolean, default=False)
+    is_hostile = Column(Boolean, default=False)
+    scars = Column(Text)
     attacks = Column(JSON)
 
     current_map_point_id = Column(Integer, ForeignKey("map_point.id"))

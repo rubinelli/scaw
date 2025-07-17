@@ -59,17 +59,18 @@ This document outlines a phased, iterative development plan for the Solo Cairn A
     - **7.5: Synthesize Narrative:** The orchestrator will take the result of the executed tool and use the `LLMService` to generate a narrative description of the outcome for the player.
 - **Test Strategy:** Write unit tests for each "World Tool". Write integration tests to verify that natural language commands (e.g., "I attack the goblin") correctly trigger the appropriate tool-calling sequence and state changes.
 
-### **Task 8: Implement Core Combat & Healing Loop** [Status: pending]
+### **Task 8: Implement Core Combat & Healing Loop** [Status: Done]
 - **Priority:** high
 - **Dependencies:** [2, 7]
 - **Description:** Implement the fundamental mechanics for combat, healing, and character death.
 - **Subtasks:**
-    - **8.1: Implement `/attack` Handler:** Create the orchestrator method to handle the `/attack` command, identify the target `GameEntity` in the database, and calculate damage.
-    - **8.2: Implement Damage Application:** Create a utility function to apply damage to a `GameEntity`, first reducing HP, then STR. Include logic for the HP=0 "Scar" event.
-    - **8.3: Implement Death Handling:** Add logic to check if an entity's STR is 0 or less after taking damage. If so, mark them as `is_retired` or remove them from the database.
-    - **8.4: Implement `/rest` and `/makecamp` Handlers:** Create handlers that restore HP (rest) and handle fatigue/rations (makecamp, placeholder for now).
-    - **8.5: Implement Basic NPC Response:** After a player action, have the orchestrator trigger a simple, rule-based counter-attack from any hostile NPCs in the scene.
-- **Test Strategy:** Create a test scenario with a player and a monster. Verify that using `/attack` correctly reduces the monster's HP and STR, and eventually kills it. Test that `/rest` restores player HP.
+    - **8.1: Enhance `GameEntity` Model:** Add `scars` (String) and `is_hostile` (Boolean) fields to the model in `src/database/models.py`.
+    - **8.2: Create Database Migration:** Generate and apply a new Alembic migration to update the database schema with the new fields.
+    - **8.3: Update `deal_damage` Logic:** Modify the `deal_damage` tool in `src/core/world_tools.py` to handle the "Scar" mechanic when HP hits 0, apply damage to STR only after HP is depleted, and mark entities as `is_retired` at 0 STR without deleting them.
+    - **8.4: Implement Healing Tools:** Create a `rest` tool to restore HP to max and a placeholder `make_camp` tool in `src/core/world_tools.py`.
+    - **8.5: Implement NPC Reaction Logic:** In `src/core/orchestrator.py`, after a player action, query for hostile NPCs at the location and trigger a counter-attack using the `deal_damage` tool.
+    - **8.6: Synthesize Turn Narrative:** Consolidate the results of the player's action and all NPC counter-attacks into a single narrative response using the `LLMService`.
+- **Test Strategy:** Create a test scenario with a player and a monster. Verify that using `/attack` correctly reduces the monster's HP and STR, triggers a Scar, and eventually marks it as retired. Test that `rest` restores player HP. Test that a hostile NPC automatically counter-attacks.
 
 ### **Task 9: Implement Core Inventory Management** [Status: pending]
 - **Priority:** high

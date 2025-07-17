@@ -88,7 +88,12 @@ def get_character_sheet(db: Session, character_name: str) -> Dict[str, Any]:
 
 def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, Any]:
     """
-    Deals a specific amount of damage to a target entity, affecting HP then Strength.
+    Deals a specific amount of damage to a target entity.
+
+    Damage is first applied to HP. If HP is depleted, the remaining damage
+    is applied to Strength (STR). If an attack reduces HP to exactly 0,
+    the character gets a Scar and their Max HP is reduced. If STR is
+    reduced to 0, the character is dead.
 
     Args:
         db: The database session.
@@ -102,12 +107,25 @@ def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, 
     if not entity:
         return {"error": f"Target '{target_name}' not found."}
 
-    # Damage is first dealt to HP
-    hp_damage = min(entity.hp, damage_amount)
+    original_hp = entity.hp
+    original_strength = entity.strength
+    received_scar = None
+
+    # Check for a Scar before applying damage
+    if original_hp > 0 and (original_hp - damage_amount) == 0:
+        scar_description = f"A nasty gash across the face, a constant reminder of this day."
+        entity.scars = (
+            f"{entity.scars}\n{scar_description}" if entity.scars else scar_description
+        )
+        entity.max_hp = max(0, entity.max_hp - 1)  # Reduce max_hp, ensure it's not negative
+        received_scar = scar_description
+
+    # Apply damage to HP first
+    hp_damage = min(original_hp, damage_amount)
     entity.hp -= hp_damage
     remaining_damage = damage_amount - hp_damage
 
-    # Any remaining damage is dealt to Strength
+    # Apply remaining damage to Strength
     if remaining_damage > 0:
         entity.strength -= remaining_damage
 
@@ -115,21 +133,71 @@ def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, 
         "target_name": entity.name,
         "damage_taken": damage_amount,
         "hp_lost": hp_damage,
+        "strength_lost": original_strength - entity.strength,
         "new_hp": entity.hp,
         "new_strength": entity.strength,
+        "received_scar": received_scar,
         "is_dead": False,
     }
 
+    # Check for death
     if entity.strength <= 0:
         entity.is_retired = True  # Mark as dead/retired
         result["is_dead"] = True
         result["final_state"] = f"{entity.name} has been slain."
-        db.delete(entity)  # Or mark as dead, depending on desired game logic
 
     return result
 
 
+
 # --- Inventory & Item Tools ---
+
+
+def rest(db: Session, character_name: str) -> Dict[str, Any]:
+    """
+    Allows a character to take a short rest to recover HP.
+
+    Args:
+        db: The database session.
+        character_name: The name of the character resting.
+
+    Returns:
+        A dictionary confirming the character has rested and their HP is restored.
+    """
+    entity = _find_entity_by_name(db, character_name)
+    if not entity:
+        return {"error": f"Character '{character_name}' not found."}
+
+    entity.hp = entity.max_hp
+    return {
+        "success": True,
+        "character_name": entity.name,
+        "new_hp": entity.hp,
+        "message": f"{entity.name} takes a moment to catch their breath, tending to their wounds.",
+    }
+
+
+def make_camp(db: Session, character_name: str) -> Dict[str, Any]:
+    """
+    Allows a character to make camp for the day to recover fully. (Placeholder)
+
+    Args:
+        db: The database session.
+        character_name: The name of the character making camp.
+
+    Returns:
+        A dictionary confirming the character has made camp.
+    """
+    entity = _find_entity_by_name(db, character_name)
+    if not entity:
+        return {"error": f"Character '{character_name}' not found."}
+
+    # Placeholder: In the future, this will handle fatigue, rations, etc.
+    entity.hp = entity.max_hp
+    return {
+        "success": True,
+        "message": f"{entity.name} sets up a small, rough camp for the night, finding a brief respite.",
+    }
 
 
 def add_item_to_inventory(

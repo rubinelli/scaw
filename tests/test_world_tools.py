@@ -55,6 +55,28 @@ def test_deal_damage(db_session):
     assert result["is_dead"] == False  # noqa: E712
 
 
+def test_deal_damage_with_scar(db_session):
+    char = GameEntity(
+        name="Test Character", entity_type="Character", hp=5, max_hp=5, strength=10
+    )
+    db_session.add(char)
+    db_session.commit()
+
+    # Damage brings HP to exactly 0, should trigger a scar
+    result = world_tools.deal_damage(db_session, "Test Character", 5)
+    assert result["new_hp"] == 0
+    assert result["new_strength"] == 10
+    assert result["received_scar"] is not None
+    assert char.max_hp == 4
+    assert char.scars is not None
+
+    # Further damage should go to strength
+    result = world_tools.deal_damage(db_session, "Test Character", 3)
+    assert result["new_hp"] == 0
+    assert result["new_strength"] == 7
+    assert result["received_scar"] is None
+
+
 def test_add_item_to_inventory(db_session):
     char = GameEntity(name="Test Character", entity_type="Character")
     db_session.add(char)
@@ -66,3 +88,22 @@ def test_add_item_to_inventory(db_session):
     item = db_session.query(Item).filter_by(name="Sword").first()
     assert item is not None
     assert item.owner_entity_id == char.id
+
+
+def test_rest(db_session):
+    char = GameEntity(name="Test Character", entity_type="Character", hp=1, max_hp=10)
+    db_session.add(char)
+    db_session.commit()
+    result = world_tools.rest(db_session, "Test Character")
+    assert result["success"] is True
+    assert char.hp == 10
+
+
+def test_make_camp(db_session):
+    char = GameEntity(name="Test Character", entity_type="Character", hp=1, max_hp=10)
+    db_session.add(char)
+    db_session.commit()
+    result = world_tools.make_camp(db_session, "Test Character")
+    assert result["success"] is True
+    assert char.hp == 10
+
