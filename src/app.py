@@ -25,7 +25,10 @@ def initialize_services():
             st.error(f"Failed to initialize LLM Service: {e}")
             st.stop()
     if "orchestrator" not in st.session_state:
-        st.session_state.orchestrator = WardenOrchestrator(st.session_state.llm_service)
+        with next(get_db()) as db:
+            st.session_state.orchestrator = WardenOrchestrator(
+                st.session_state.llm_service, db
+            )
 
 
 def create_new_database():

@@ -99,7 +99,7 @@ class MapPoint(Base):
     position_x = Column(Integer)
     position_y = Column(Integer)
 
-    default_location_id = Column(Integer, ForeignKey("location.id"), nullable=True)
+    default_location_id = Column(Integer, ForeignKey("location.id", use_alter=True), nullable=True)
     default_location = relationship("Location", foreign_keys=[default_location_id])
 
     entities = relationship("GameEntity", back_populates="current_map_point")

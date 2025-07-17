@@ -126,7 +126,6 @@ def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, 
         result["final_state"] = f"{entity.name} has been slain."
         db.delete(entity)  # Or mark as dead, depending on desired game logic
 
-    db.commit()
     return result
 
 
@@ -182,7 +181,6 @@ def add_item_to_inventory(
         db.add(new_item)
         message = f"Added {quantity}x {item_name} to {character_name}'s inventory."
 
-    db.commit()
     return {"success": True, "message": message}
 
 
@@ -201,16 +199,16 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         A dictionary containing the location's details.
     """
     character = _find_entity_by_name(db, character_name)
-    if not character or not character.current_map_point:
+    if not character or not character.current_location:
         return {"error": "Character or their location could not be found."}
 
-    location = character.current_map_point
+    location = character.current_location
 
     # Find other entities at the same location
     other_entities = (
         db.query(models.GameEntity)
         .filter(
-            models.GameEntity.current_map_point_id == location.id,
+            models.GameEntity.current_location_id == location.id,
             models.GameEntity.id != character.id,
             models.GameEntity.is_retired == False,  # noqa: E712
         )
@@ -234,4 +232,33 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         if other_entities
         else "None",
         "items_on_ground": [i.name for i in ground_items] if ground_items else "None",
+    }
+
+
+def move_character(db: Session, character_name: str, new_location_name: str) -> Dict[str, Any]:
+    """
+    Moves a character to a new location.
+
+    Args:
+        db: The database session.
+        character_name: The name of the character to move.
+        new_location_name: The name of the location to move to.
+
+    Returns:
+        A dictionary indicating the result of the move.
+    """
+    character = _find_entity_by_name(db, character_name)
+    if not character:
+        return {"error": f"Character '{character_name}' not found."}
+
+    new_location = db.query(models.Location).filter(func.lower(models.Location.name) == new_location_name.lower()).first()
+    if not new_location:
+        return {"error": f"Location '{new_location_name}' not found."}
+
+    character.current_location_id = new_location.id
+
+    return {
+        "success": True,
+        "character_name": character.name,
+        "new_location_name": new_location.name,
     }
