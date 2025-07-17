@@ -25,7 +25,9 @@ def db_session():
 
 
 def test_move_character_to_location(db_session):
-    map_point = MapPoint(name="Test Map Point", description="A point on the map.", status="known")
+    map_point = MapPoint(
+        name="Test Map Point", description="A point on the map.", status="known"
+    )
     db_session.add(map_point)
     db_session.commit()
 

@@ -25,15 +25,9 @@ class WorldManager:
         Returns:
             A dictionary indicating the result of the move.
         """
-        character = (
-            self.db.query(models.GameEntity)
-            .filter_by(id=character_id)
-            .first()
-        )
+        character = self.db.query(models.GameEntity).filter_by(id=character_id).first()
         new_location = (
-            self.db.query(models.Location)
-            .filter_by(id=new_location_id)
-            .first()
+            self.db.query(models.Location).filter_by(id=new_location_id).first()
         )
 
         if not character:

@@ -235,7 +235,9 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
     }
 
 
-def move_character(db: Session, character_name: str, new_location_name: str) -> Dict[str, Any]:
+def move_character(
+    db: Session, character_name: str, new_location_name: str
+) -> Dict[str, Any]:
     """
     Moves a character to a new location.
 
@@ -251,7 +253,11 @@ def move_character(db: Session, character_name: str, new_location_name: str) -> 
     if not character:
         return {"error": f"Character '{character_name}' not found."}
 
-    new_location = db.query(models.Location).filter(func.lower(models.Location.name) == new_location_name.lower()).first()
+    new_location = (
+        db.query(models.Location)
+        .filter(func.lower(models.Location.name) == new_location_name.lower())
+        .first()
+    )
     if not new_location:
         return {"error": f"Location '{new_location_name}' not found."}
 

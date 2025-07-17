@@ -1,7 +1,3 @@
-"""
-Main orchestrator for the AI Warden.
-"""
-
 import inspect
 from sqlalchemy.orm import Session
 from core.llm_service import LLMService
@@ -41,7 +37,7 @@ class WardenOrchestrator:
         db.add(player_log)
 
         chosen_tool_call = self.llm_service.choose_tool(
-            player_input, tools=self.available_tools
+            player_input, tools=self.available_tools.values()
         )
 
         warden_response = ""
@@ -51,7 +47,6 @@ class WardenOrchestrator:
 
             if tool_name in self.available_tools:
                 tool_function = self.available_tools[tool_name]
-                # No need to pass db as an argument anymore
 
                 try:
                     tool_result = tool_function(**tool_args)
@@ -77,5 +72,5 @@ class WardenOrchestrator:
         if warden_response:
             warden_log = LogEntry(source="Warden", content=warden_response)
             db.add(warden_log)
-        
+
         db.commit()

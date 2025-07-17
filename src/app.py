@@ -1,6 +1,4 @@
 import os
-
-
 import streamlit as st
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
@@ -33,18 +31,12 @@ def initialize_services():
 
 def create_new_database():
     """Wipes and creates a fresh database with the current schema and stamps it."""
-    # First, dispose of the existing engine to release the file lock
     dispose_engine()
-
     if os.path.exists(DB_FILE):
         os.remove(DB_FILE)
-
-    # Create an engine for the setup process
     engine = create_engine(f"sqlite:///{DB_FILE}")
     Base.metadata.create_all(engine)
     engine.dispose()
-
-    # Stamp the new database with the latest Alembic revision
     alembic_cfg = AlembicConfig("alembic.ini")
     alembic_command.stamp(alembic_cfg, "head")
     st.toast("New world created.")
@@ -60,11 +52,9 @@ def show_welcome_screen():
         if st.button("New Game", use_container_width=True):
             create_new_database()
             with next(get_db()) as db:
-                # Generate the world
                 world_generator = WorldGenerator(db)
                 world_generator.generate_new_world()
 
-                # Create the character
                 new_character = GameEntity(
                     name="Grimgar",
                     entity_type="Character",
@@ -77,13 +67,11 @@ def show_welcome_screen():
                     willpower=8,
                     max_willpower=8,
                 )
-                # Assign a starting location
                 start_map_point = (
                     db.query(MapPoint).filter(MapPoint.status == "explored").first()
                 )
                 if start_map_point:
                     new_character.current_map_point_id = start_map_point.id
-                    # Assign the character to the default location of the starting map point
                     if start_map_point.default_location:
                         new_character.current_location_id = (
                             start_map_point.default_location.id
@@ -99,7 +87,6 @@ def show_welcome_screen():
 
     with col2:
         if st.button("Load Game", use_container_width=True):
-            # This will be implemented later
             st.warning("Load Game functionality not yet implemented.")
 
 
@@ -114,84 +101,71 @@ def show_main_layout():
         )
         log_entries = db.query(LogEntry).order_by(LogEntry.created_at.asc()).all()
 
-    if not character:
-        st.error("Character not found. Please start a new game.")
-        st.session_state["game_active"] = False
-        st.rerun()
-        return
-
-    # --- SIDEBAR (Player Hub & Tools) ---
-    with st.sidebar:
-        st.title("Player Hub")
-
-        # VitalsView
-        st.header(character.name)
-        vitals_container = st.container(border=True)
-        col1, col2 = vitals_container.columns(2)
-        col1.metric("HP", f"{character.hp}/{character.max_hp}")
-        col2.metric("Fatigue", character.fatigue)
-        vitals_container.divider()
-        vitals_container.metric("STR", f"{character.strength}/{character.max_strength}")
-        vitals_container.metric(
-            "DEX", f"{character.dexterity}/{character.max_dexterity}"
-        )
-        vitals_container.metric(
-            "WIL", f"{character.willpower}/{character.max_willpower}"
-        )
-
-        # InventoryView Placeholder
-        st.header("Inventory")
-        st.container(border=True).write("10-slot grid")
-
-        # Game Controls
-        st.header("Game Controls")
-        st.button("Save Game", use_container_width=True)
-        if st.button("Exit to Main Menu", use_container_width=True):
+        if not character:
+            st.error("Character not found. Please start a new game.")
             st.session_state["game_active"] = False
-            del st.session_state["character_id"]
             st.rerun()
+            return
 
-    # --- MAIN AREA (Session & Context) ---
-    st.title("Adventure Log")
+        # --- SIDEBAR ---
+        with st.sidebar:
+            st.title("Player Hub")
+            st.header(character.name)
+            vitals_container = st.container(border=True)
+            col1, col2 = vitals_container.columns(2)
+            col1.metric("HP", f"{character.hp}/{character.max_hp}")
+            col2.metric("Fatigue", character.fatigue)
+            vitals_container.divider()
+            vitals_container.metric(
+                "STR", f"{character.strength}/{character.max_strength}"
+            )
+            vitals_container.metric(
+                "DEX", f"{character.dexterity}/{character.max_dexterity}"
+            )
+            vitals_container.metric(
+                "WIL", f"{character.willpower}/{character.max_willpower}"
+            )
+            st.header("Inventory")
+            st.container(border=True).write("10-slot grid")
+            st.header("Game Controls")
+            st.button("Save Game", use_container_width=True)
+            if st.button("Exit to Main Menu", use_container_width=True):
+                st.session_state["game_active"] = False
+                del st.session_state["character_id"]
+                st.rerun()
 
-    # Context View Placeholder
-    with st.container(border=True):
-        st.subheader("Context View")
-        # MapView Placeholder
-        st.write("**Map View**")
-        st.container(border=True).write("Graphviz map will be here.")
+        # --- MAIN AREA ---
+        st.title("Adventure Log")
+        with st.container(border=True):
+            st.subheader("Context View")
+            st.write("**Map View**")
+            st.container(border=True).write("Graphviz map will be here.")
 
-    # Game Log
-    st.subheader("Session View")
-    log_container = st.container(border=True, height=400)
-    for entry in log_entries:
-        with log_container.chat_message(name=entry.source.lower()):
-            st.markdown(entry.content)
+        st.subheader("Session View")
+        log_container = st.container(border=True, height=400)
+        for entry in log_entries:
+            with log_container.chat_message(name=entry.source.lower()):
+                st.markdown(entry.content)
 
-    # User Input
-    if prompt := st.chat_input("What do you do?"):
-        with next(get_db()) as db:
-            st.session_state.orchestrator.handle_player_input(prompt, db)
-        st.rerun()
+        if prompt := st.chat_input("What do you do?"):
+            with next(get_db()) as db:
+                st.session_state.orchestrator.handle_player_input(prompt, db)
+            st.rerun()
 
 
 def main():
     """Main application entry point."""
     st.set_page_config(page_title="Cairn Solo AI Warden", layout="wide")
 
-    # If game_active is explicitly set to False, show welcome screen (e.g., user clicked "Exit")
     if st.session_state.get("game_active") is False:
         show_welcome_screen()
         return
 
-    # If game is already active in session, show main layout
     if st.session_state.get("game_active"):
         show_main_layout()
         return
 
-    # On first load, check if a character exists in the DB to auto-load the game
     try:
-        valid_game = False
         with next(get_db()) as db:
             character = (
                 db.query(GameEntity)
@@ -204,14 +178,10 @@ def main():
             if character:
                 st.session_state["game_active"] = True
                 st.session_state["character_id"] = character.id
-                valid_game = True
+                show_main_layout()
+                return
     except Exception:
         pass
-    if valid_game:
-        show_main_layout()
-        return
-    # This can happen if the DB doesn't exist or the schema is wrong
-    # In either case, we show the welcome screen to start fresh.
     show_welcome_screen()
 
 

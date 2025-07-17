@@ -30,7 +30,9 @@ def test_roll_dice():
 
 
 def test_get_character_sheet(db_session):
-    char = GameEntity(name="Test Character", entity_type="Character", hp=10, strength=12)
+    char = GameEntity(
+        name="Test Character", entity_type="Character", hp=10, strength=12
+    )
     db_session.add(char)
     db_session.commit()
     sheet = world_tools.get_character_sheet(db_session, "Test Character")
@@ -39,7 +41,9 @@ def test_get_character_sheet(db_session):
 
 
 def test_deal_damage(db_session):
-    char = GameEntity(name="Test Character", entity_type="Character", hp=10, strength=12)
+    char = GameEntity(
+        name="Test Character", entity_type="Character", hp=10, strength=12
+    )
     db_session.add(char)
     db_session.commit()
     result = world_tools.deal_damage(db_session, "Test Character", 5)
@@ -48,14 +52,16 @@ def test_deal_damage(db_session):
     result = world_tools.deal_damage(db_session, "Test Character", 15)
     assert result["new_hp"] == 0
     assert result["new_strength"] == 2
-    assert result["is_dead"] == False
+    assert result["is_dead"] == False  # noqa: E712
 
 
 def test_add_item_to_inventory(db_session):
     char = GameEntity(name="Test Character", entity_type="Character")
     db_session.add(char)
     db_session.commit()
-    world_tools.add_item_to_inventory(db_session, "Test Character", "Sword", description="A sharp sword.")
+    world_tools.add_item_to_inventory(
+        db_session, "Test Character", "Sword", description="A sharp sword."
+    )
     db_session.commit()
     item = db_session.query(Item).filter_by(name="Sword").first()
     assert item is not None
