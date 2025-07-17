@@ -49,9 +49,14 @@ class LLMService:
         Given user input and a list of tools, asks the LLM to choose a tool.
         """
         try:
+            # Convert the Python functions into a format the Gemini API understands.
+            formatted_tools = [
+                genai.Tool(function_declarations=[func]) for func in tools.values()
+            ]
+
             response = self.model.generate_content(
                 user_input,
-                tools=list(tools.values()),
+                tools=formatted_tools,
             )
 
             if (

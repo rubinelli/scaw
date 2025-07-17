@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 SRC_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "../src"))
 sys.path.insert(0, SRC_PATH)
 
-from database.models import Base, GameEntity, MapPoint # noqa: E402
+from database.models import Base, GameEntity, MapPoint  # noqa: E402
 
 # --- Database Fixtures ---
 

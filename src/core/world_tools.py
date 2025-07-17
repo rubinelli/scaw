@@ -212,7 +212,7 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         .filter(
             models.GameEntity.current_map_point_id == location.id,
             models.GameEntity.id != character.id,
-            models.GameEntity.is_retired == False, # noqa: E712
+            models.GameEntity.is_retired == False,  # noqa: E712
         )
         .all()
     )
@@ -221,7 +221,8 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
     ground_items = (
         db.query(models.Item)
         .filter(
-            models.Item.location_id == location.id, models.Item.owner_entity_id == None # noqa: E711
+            models.Item.location_id == location.id,
+            models.Item.owner_entity_id == None,  # noqa: E711
         )
         .all()
     )
