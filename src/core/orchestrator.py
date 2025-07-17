@@ -15,17 +15,16 @@ class WardenOrchestrator:
 
     def _load_tools(self):
         """Dynamically loads all functions from the world_tools and world_manager modules."""
-        tools = {
-            name: func
-            for name, func in inspect.getmembers(world_tools, inspect.isfunction)
-            if not name.startswith("_")
-        }
-        mgr_tools = {
-            name: func
-            for name, func in inspect.getmembers(self.world_manager, inspect.ismethod)
-            if not name.startswith("_")
-        }
-        tools.update(mgr_tools)
+        tools = {}
+        
+        for name, func in inspect.getmembers(world_tools, inspect.isfunction):
+            if not name.startswith("_"):
+                tools[name] = func
+        
+        for name, func in inspect.getmembers(self.world_manager, inspect.ismethod):
+            if not name.startswith("_"):
+                tools[name] = func
+        
         return tools
 
     def handle_player_input(self, player_input: str, db: Session) -> None:
@@ -37,12 +36,12 @@ class WardenOrchestrator:
         db.add(player_log)
 
         chosen_tool_call = self.llm_service.choose_tool(
-            player_input, tools=self.available_tools.values()
+            player_input, tools=self.available_tools
         )
 
         warden_response = ""
         if chosen_tool_call:
-            tool_name = chosen_tool_call.get("name")
+            tool_name = str(chosen_tool_call.get("name"))
             tool_args = chosen_tool_call.get("arguments", {})
 
             if tool_name in self.available_tools:

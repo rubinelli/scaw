@@ -47,7 +47,7 @@ This document outlines a phased, iterative development plan for the Solo Cairn A
 - **Dependencies:** [1]
 - **Description:** Implement the `LLMService` with a single, default provider (Gemini) and test its connectivity.
 
-### **Task 7: Develop Core Warden Orchestrator & Tool-Calling Loop** [Status: WIP]
+### **Task 7: Develop Core Warden Orchestrator & Tool-Calling Loop** [Status: Done]
 - **Priority:** high
 - **Dependencies:** [5, 6]
 - **Description:** Build the core `WardenOrchestrator` to interpret natural language input and use a tool-calling LLM to execute game actions.

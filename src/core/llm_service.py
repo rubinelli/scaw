@@ -1,4 +1,5 @@
 import os
+import inspect
 from typing import Any, Callable, Dict
 import google.generativeai as genai
 
@@ -46,12 +47,20 @@ class LLMService:
         Given user input and a list of tools, asks the LLM to choose a tool.
         """
         try:
-            # The genai SDK expects a simple list or iterable of the functions.
-            tool_list = list(tools.values())
-
+            # The genai SDK expects a list of genai.Tool objects.
+            # We can convert our Python functions to this format.
+            tool_sdk_format = [genai.protos.Tool(
+                function_declarations=[
+                    genai.protos.FunctionDeclaration(
+                        name=name,
+                        description=inspect.getdoc(func)
+                    )
+                    for name, func in tools.items()
+                ]
+            )]
             response = self.model.generate_content(
                 user_input,
-                tools=tool_list,
+                tools=tool_sdk_format,
             )
 
             if (
