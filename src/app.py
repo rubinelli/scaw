@@ -76,6 +76,26 @@ def show_welcome_screen():
                         new_character.current_location_id = (
                             start_map_point.default_location.id
                         )
+                        # Add a hostile wolf to the same location
+                        wolf = GameEntity(
+                            name="Starving Wolf",
+                            entity_type="Monster",
+                            hp=4,
+                            max_hp=4,
+                            strength=6,
+                            max_strength=6,
+                            dexterity=12,
+                            max_dexterity=12,
+                            willpower=6,
+                            max_willpower=6,
+                            is_hostile=True,
+                            attacks='[{"name": "Bite", "damage": "1d6"}]',
+                            current_location_id=start_map_point.default_location.id,
+                        )
+                        db.add(wolf)
+                
+                # Give the player an attack
+                new_character.attacks = '[{"name": "Rusty Sword", "damage": "1d8"}]'
 
                 db.add(new_character)
                 db.commit()

@@ -103,6 +103,7 @@ def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, 
     Returns:
         A dictionary confirming the action and showing the target's new state.
     """
+    print(f"Dealing {damage_amount} damage to {target_name}...")
     entity = _find_entity_by_name(db, target_name)
     if not entity:
         return {"error": f"Target '{target_name}' not found."}
@@ -139,6 +140,7 @@ def deal_damage(db: Session, target_name: str, damage_amount: int) -> Dict[str, 
         "received_scar": received_scar,
         "is_dead": False,
     }
+    print(f"Result after damage: {result}")
 
     # Check for death
     if entity.strength <= 0:

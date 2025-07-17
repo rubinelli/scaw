@@ -49,6 +49,7 @@ class WardenOrchestrator:
         warden_response = ""
 
         if chosen_tool_call:
+            print(f"Chosen tool call: {chosen_tool_call}")
             tool_name = str(chosen_tool_call.get("name"))
             tool_args = chosen_tool_call.get("arguments", {})
 
@@ -70,6 +71,8 @@ class WardenOrchestrator:
                 player_action_result = {
                     "error": f"The AI tried to use an unknown tool: {tool_name}"
                 }
+        else:
+            print("No tool was called by the AI.")
 
         # --- NPC Reaction Step ---
         npc_actions = []

@@ -58,11 +58,12 @@ class LLMService:
                     for name, func in tools.items()
                 ]
             )]
+            print(f"Available tools: {list(tools.keys())} - User input: {user_input}")
             response = self.model.generate_content(
                 user_input,
                 tools=tool_sdk_format,
             )
-
+            print(f"LLM response: {response}")
             if (
                 response.candidates
                 and response.candidates[0].content.parts
