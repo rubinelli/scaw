@@ -171,7 +171,6 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
         "received_scar": received_scar,
         "is_dead": False,
     }
-    print(f"Attack result: {result}")
 
     # Check for death
     if target.strength <= 0:
@@ -179,6 +178,7 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
         result["is_dead"] = True
         result["final_state"] = f"{target.name} has been slain."
 
+    print(f"Attack result: {result}")
     return result
 
 

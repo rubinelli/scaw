@@ -1,7 +1,7 @@
 import inspect
 from sqlalchemy.orm import Session
 from core.llm_service import LLMService
-from database.models import LogEntry, GameEntity
+from database.models import LogEntry, GameEntity, Item
 from core import world_tools, world_manager
 
 
@@ -40,8 +40,41 @@ class WardenOrchestrator:
         db.add(player_log)
         db.commit()  # Commit the player log immediately
 
+        # --- Context Gathering Step ---
+        player = self.get_player_character(db)
+        context_prompt = ""
+        if player and player.current_location:
+            location_name = player.current_location.name
+            entities_at_location = (
+                db.query(GameEntity)
+                .filter(
+                    GameEntity.current_location_id == player.current_location_id,
+                    #GameEntity.is_retired == False,  # noqa: E712
+                    GameEntity.id != player.id,  # Exclude the player character
+                )
+                .all()
+            )
+            items_at_location = (
+                db.query(Item)
+                .filter(Item.location_id == player.current_location_id)
+                .all()
+            )
+
+            entity_names = [e.name + ("(dead)" if e.is_retired else "") for e in entities_at_location]
+            item_names = [i.name for i in items_at_location]
+            context_list = entity_names + item_names
+            context_names = ", ".join(context_list) or "nothing of interest" # type: ignore
+
+            context_prompt = f"""
+You are at: {location_name}.
+The following are here: {context_names}.
+"""
+
+        # --- Tool Selection Step ---
+        prompt_for_llm = f"{context_prompt}\nPlayer command: {player_input}"
+        print(f"Prompt for LLM: {prompt_for_llm}")
         chosen_tool_call = self.llm_service.choose_tool(
-            player_input, tools=self.available_tools
+            prompt_for_llm, tools=self.available_tools
         )
 
         player_action_result = None
