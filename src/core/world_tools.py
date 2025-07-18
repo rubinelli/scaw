@@ -17,6 +17,12 @@ from database import models
 
 def _find_entity_by_name(db: Session, name: str) -> models.GameEntity | None:
     """Finds a single entity by name, case-insensitively."""
+    if not name:
+        return None
+
+    if name.lower() == "player":
+        return db.query(models.GameEntity).filter_by(entity_type="Character", is_retired=False).first()
+
     return (
         db.query(models.GameEntity)
         .filter(func.lower(models.GameEntity.name) == name.lower())

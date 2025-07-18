@@ -56,7 +56,7 @@ def test_deal_damage(db_session):
 
 def test_deal_damage_with_scar(db_session):
     attacker = GameEntity(
-        name="Attacker", entity_type="Character", attacks=[{"name": "Axe", "damage": "5"}]
+        name="Attacker", entity_type="Character", attacks='[{"name": "Axe", "damage": "5"}]'
     )
     target = GameEntity(
         name="Target", entity_type="Monster", hp=5, max_hp=5, strength=10
@@ -73,7 +73,7 @@ def test_deal_damage_with_scar(db_session):
     assert target.scars is not None
 
     # Further damage should go to strength
-    attacker.attacks = [{"name": "Axe", "damage": "3"}]
+    attacker.attacks = '[{"name": "Axe", "damage": "3"}]'
     result = world_tools.deal_damage(db_session, "Attacker", "Target")
     assert result["new_hp"] == 0
     assert result["new_strength"] == 7

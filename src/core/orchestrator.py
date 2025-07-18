@@ -29,7 +29,7 @@ class WardenOrchestrator:
 
     def get_player_character(self, db: Session) -> GameEntity | None:
         """Retrieves the player character entity."""
-        return db.query(GameEntity).filter_by(entity_type="Character").first()
+        return db.query(GameEntity).filter_by(entity_type="Character", is_retired=False).first()
 
     def handle_player_input(self, player_input: str, db: Session) -> None:
         """
