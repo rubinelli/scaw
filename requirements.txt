@@ -4,5 +4,5 @@ alembic
 python-dotenv
 google-generativeai
 graphviz
-cognee-core
+cognee
 lancedb
