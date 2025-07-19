@@ -29,7 +29,11 @@ class WardenOrchestrator:
 
     def get_player_character(self, db: Session) -> GameEntity | None:
         """Retrieves the player character entity."""
-        return db.query(GameEntity).filter_by(entity_type="Character", is_retired=False).first()
+        return (
+            db.query(GameEntity)
+            .filter_by(entity_type="Character", is_retired=False)
+            .first()
+        )
 
     def handle_player_input(self, player_input: str, db: Session) -> None:
         """
@@ -49,7 +53,7 @@ class WardenOrchestrator:
                 db.query(GameEntity)
                 .filter(
                     GameEntity.current_location_id == player.current_location_id,
-                    #GameEntity.is_retired == False,  # noqa: E712
+                    # GameEntity.is_retired == False,  # noqa: E712
                     GameEntity.id != player.id,  # Exclude the player character
                 )
                 .all()
@@ -60,10 +64,13 @@ class WardenOrchestrator:
                 .all()
             )
 
-            entity_names = [e.name + ("(dead)" if e.is_retired else "") for e in entities_at_location]
+            entity_names = [
+                e.name + ("(dead)" if e.is_retired else "")
+                for e in entities_at_location
+            ]
             item_names = [i.name for i in items_at_location]
             context_list = entity_names + item_names
-            context_names = ", ".join(context_list) or "nothing of interest" # type: ignore
+            context_names = ", ".join(context_list) or "nothing of interest"  # type: ignore
 
             context_prompt = f"""
 You are at: {location_name}.
@@ -109,26 +116,27 @@ The following are here: {context_names}.
 
         # --- NPC Reaction Step ---
         npc_actions = []
-        player = self.get_player_character(db)
-        if player and player.current_location:
-            hostile_npcs = (
-                db.query(GameEntity)
-                .filter(
-                    GameEntity.current_location_id == player.current_location_id,
-                    GameEntity.is_hostile == True,  # noqa: E712
-                    GameEntity.is_retired == False,  # noqa: E712
-                    GameEntity.id != player.id,
+        if tool_name == "deal_damage":
+            player = self.get_player_character(db)
+            if player and player.current_location:
+                hostile_npcs = (
+                    db.query(GameEntity)
+                    .filter(
+                        GameEntity.current_location_id == player.current_location_id,
+                        GameEntity.is_hostile == True,  # noqa: E712
+                        GameEntity.is_retired == False,  # noqa: E712
+                        GameEntity.id != player.id,
+                    )
+                    .all()
                 )
-                .all()
-            )
 
-            for npc in hostile_npcs:
-                # Simple NPC AI: always attack the player
-                attack_result = world_tools.deal_damage(
-                    db, attacker_name=npc.name, target_name=player.name
-                )
-                npc_actions.append({npc.name: attack_result})
-                db.commit() # Commit each NPC action
+                for npc in hostile_npcs:
+                    # Simple NPC AI: always attack the player
+                    attack_result = world_tools.deal_damage(
+                        db, attacker_name=npc.name, target_name=player.name
+                    )
+                    npc_actions.append({npc.name: attack_result})
+                    db.commit()  # Commit each NPC action
 
         # --- Narrative Synthesis Step ---
         if player_action_result or npc_actions:

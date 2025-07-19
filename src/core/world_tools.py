@@ -1,9 +1,3 @@
-"""
-This module defines the "World Tools" that the AI Warden can use to interact
-with the game world. These functions are the bridge between the LLM's narrative
-and the concrete game state stored in the database.
-"""
-
 import random
 import re
 import json
@@ -11,6 +5,13 @@ from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import models
+from .oracles import OracleRoller
+
+"""
+This module defines the "World Tools" that the AI Warden can use to interact
+with the game world. These functions are the bridge between the LLM's narrative
+and the concrete game state stored in the database.
+"""
 
 # --- Helper Functions ---
 
@@ -21,7 +22,11 @@ def _find_entity_by_name(db: Session, name: str) -> models.GameEntity | None:
         return None
 
     if name.lower() == "player":
-        return db.query(models.GameEntity).filter_by(entity_type="Character", is_retired=False).first()
+        return (
+            db.query(models.GameEntity)
+            .filter_by(entity_type="Character", is_retired=False)
+            .first()
+        )
 
     return (
         db.query(models.GameEntity)
@@ -128,13 +133,14 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
         attacks_list = json.loads(attacker.attacks)
         # Assuming the first attack in the list is the primary one
         attack_info = attacks_list[0]
-        damage_dice = attack_info.get("damage", "1d4")  # Default to 1d4 if no damage specified
+        damage_dice = attack_info.get(
+            "damage", "1d4"
+        )  # Default to 1d4 if no damage specified
     except (IndexError, TypeError, KeyError, json.JSONDecodeError):
-        damage_dice = "1d4" # Default if attacks are missing or malformed
+        damage_dice = "1d4"  # Default if attacks are missing or malformed
 
     damage_roll_result = roll_dice(damage_dice)
     damage_amount = damage_roll_result.get("total", 0)
-
 
     original_hp = target.hp
     original_strength = target.strength
@@ -142,7 +148,9 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
 
     # Check for a Scar before applying damage
     if original_hp > 0 and (original_hp - damage_amount) == 0:
-        scar_description = f"A nasty gash across the face, a constant reminder of this day."
+        scar_description = (
+            "A nasty gash across the face, a constant reminder of this day."
+        )
         target.scars = (
             f"{target.scars}\n{scar_description}" if target.scars else scar_description
         )
@@ -182,8 +190,82 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
     return result
 
 
-
 # --- Inventory & Item Tools ---
+
+
+def drop_item(db: Session, character_name: str, item_name: str) -> Dict[str, Any]:
+    """
+    Removes an item from a character's inventory and places it on the ground in their current location.
+
+    Args:
+        db: The database session.
+        character_name: The name of the character dropping the item.
+        item_name: The name of the item to drop.
+
+    Returns:
+        A dictionary confirming the action.
+    """
+    character = _find_entity_by_name(db, character_name)
+    if not character:
+        return {"error": f"Character '{character_name}' not found."}
+    if not character.current_location:
+        return {"error": f"Character '{character_name}' is not in a valid location."}
+
+    item_to_drop = (
+        db.query(models.Item)
+        .filter(
+            models.Item.owner_entity_id == character.id,
+            func.lower(models.Item.name) == item_name.lower(),
+        )
+        .first()
+    )
+
+    if not item_to_drop:
+        return {
+            "error": f"Item '{item_name}' not found in {character_name}'s inventory."
+        }
+
+    # Remove from player's inventory and add to the location
+    item_to_drop.owner_entity_id = None
+    item_to_drop.location_id = character.current_location_id
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"{character_name} dropped {item_name} on the ground.",
+    }
+
+
+def increase_fatigue(db: Session, character_name: str) -> Dict[str, Any]:
+    """
+    Increases a character's fatigue by 1. If fatigue exceeds strength, the character drops the last item in their inventory.
+
+    Args:
+        db: The database session.
+        character_name: The name of the character.
+
+    Returns:
+        A dictionary confirming the fatigue increase and any dropped items.
+    """
+    character = _find_entity_by_name(db, character_name)
+    if not character:
+        return {"error": f"Character '{character_name}' not found."}
+
+    character.fatigue += 1
+    message = f"{character.name}'s fatigue increased to {character.fatigue}."
+
+    if character.fatigue > character.strength:
+        if character.items:
+            item_to_drop = character.items[-1]
+            drop_message = drop_item(db, character.name, item_to_drop.name)["message"]
+            message += f" {drop_message}"
+        else:
+            message += " The character is exhausted but has no items to drop."
+
+    db.commit()
+
+    return {"success": True, "message": message}
 
 
 def rest(db: Session, character_name: str) -> Dict[str, Any]:
@@ -289,16 +371,7 @@ def add_item_to_inventory(
 
 
 def get_location_description(db: Session, character_name: str) -> Dict[str, Any]:
-    """
-    Retrieves the description of the player character's current location, including other entities and items on the ground.
-
-    Args:
-        db: The database session.
-        character_name: The name of the character whose location is being described.
-
-    Returns:
-        A dictionary containing the location's details.
-    """
+    """Retrieves the description of the player character's current location, including other entities and items on the ground."""
     character = _find_entity_by_name(db, character_name)
     if not character or not character.current_location:
         return {"error": "Character or their location could not be found."}
@@ -311,7 +384,7 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         .filter(
             models.GameEntity.current_location_id == location.id,
             models.GameEntity.id != character.id,
-            models.GameEntity.is_retired == False,  # noqa: E712
+            not models.GameEntity.is_retired,
         )
         .all()
     )
@@ -321,7 +394,7 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         db.query(models.Item)
         .filter(
             models.Item.location_id == location.id,
-            models.Item.owner_entity_id == None,  # noqa: E711
+            models.Item.owner_entity_id is None,
         )
         .all()
     )
@@ -334,6 +407,37 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
         else "None",
         "items_on_ground": [i.name for i in ground_items] if ground_items else "None",
     }
+
+
+def discover_location(db: Session, location_name: str) -> Dict[str, Any]:
+    """
+    Changes the status of a hidden MapPoint to 'known'.
+
+    Args:
+        db: The database session.
+        location_name: The name of the MapPoint to discover.
+
+    Returns:
+        A dictionary confirming the location has been discovered.
+    """
+    map_point = (
+        db.query(models.MapPoint)
+        .filter(func.lower(models.MapPoint.name) == location_name.lower())
+        .first()
+    )
+
+    if not map_point:
+        return {"error": f"Location '{location_name}' not found."}
+
+    if map_point.status == "hidden":
+        map_point.status = "known"
+        db.commit()
+        return {
+            "success": True,
+            "message": f"A new location, {location_name}, has been added to your map.",
+        }
+    else:
+        return {"success": False, "message": f"{location_name} is already known."}
 
 
 def move_character(
@@ -368,4 +472,51 @@ def move_character(
         "success": True,
         "character_name": character.name,
         "new_location_name": new_location.name,
+    }
+
+
+def roll_wilderness_event(db: Session) -> Dict[str, Any]:
+    """
+    Rolls on the wilderness event table and returns the result.
+
+    Args:
+        db: The database session (not used directly, but required for tool signature).
+
+    Returns:
+        A dictionary containing the wilderness event description.
+    """
+    oracle_roller = OracleRoller()
+    event = oracle_roller.roll_wilderness_event()
+    return {"event_description": event}
+
+
+def roll_saving_throw(db: Session, character_name: str, stat: str) -> Dict[str, Any]:
+    """
+    Rolls a d20 to perform a saving throw against a specified stat (strength, dexterity, or willpower).
+
+    Args:
+        db: The database session.
+        character_name: The name of the character making the saving throw.
+        stat: The stat to roll against (strength, dexterity, or willpower).
+
+    Returns:
+        A dictionary containing the roll, the target stat, and the result.
+    """
+    character = _find_entity_by_name(db, character_name)
+    if not character:
+        return {"error": f"Character '{character_name}' not found."}
+
+    stat_value = getattr(character, stat, None)
+    if stat_value is None:
+        return {"error": f"Invalid stat '{stat}' for {character_name}."}
+
+    roll = random.randint(1, 20)
+    success = roll <= stat_value
+
+    return {
+        "roll": roll,
+        "stat_tested": stat,
+        "stat_value": stat_value,
+        "success": success,
+        "message": f"{character.name} rolled a {roll} against their {stat} of {stat_value}. {'Success' if success else 'Failure'}!",
     }

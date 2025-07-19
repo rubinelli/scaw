@@ -9,7 +9,7 @@ This document provides a comprehensive guide for developing the Solo Cairn AI Wa
 - **Player-Centric Design:** The user interface and game mechanics should be intuitive, immersive, and forgiving. The player's agency and experience are paramount.
 - **Modular Architecture:** The codebase must be organized into discrete, decoupled modules. This is crucial for testability, maintainability, and future extensibility.
 - **Test-Driven Development (TDD):** Core logic (especially the orchestrator, game rules, and database interactions) should be developed with a "test-first" mindset to ensure robustness.
-- **Mechanics as the Foundation:** The AI Warden's primary role is to narrate the outcomes of the underlying Cairn 2E mechanics and oracle rolls. The LLM synthesizes, it does not invent rules.
+- **Narration Guided by Mechanics:** The AI Warden's primary role is to narrate an engaging adventure, using the underlying Cairn 2E mechanics and oracle rolls to keep it fair and consistent. The LLM follows the rules and principles a human GM would.
 
 ---
 
@@ -66,26 +66,17 @@ scaw/
 
 ## 3. Code Quality & Standards
 
-(No changes from previous version)
+The development is done in a Windows machine, so any commands called should be Windows-compatible (e.g. `del` instad of `rm`.) Paths should be absolute instead of relative when altering files.
 
 ### 3.1. Linting and Formatting
 
 -   **Tool:** `Ruff`
 -   **Command:** `ruff check . --fix && ruff format .`
 
-### 3.2. Type Checking
-
--   **Tool:** `mypy`
--   **Command:** `mypy src`
-
-### 3.3. Testing
+### 3.2. Testing
 
 -   **Framework:** `pytest`
 -   **Requirement:** Core business logic, especially in `orchestrator.py`, `world_manager.py`, and all `world_tools.py` functions, must have comprehensive unit test coverage.
-
-### 3.4. Commit Messages
-
--   **Standard:** [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 ---
 
@@ -113,3 +104,4 @@ scaw/
 
 -   **Integration:** The `LLMService` will be the integration point for the RAG system (Cognee).
 -   **Data Flow:** When an adventure is loaded, the `LogEntry` table from the SQLite database will be used to build/rebuild the in-memory RAG index. This ensures the context is always in sync with the canonical game state and that the index is treated as a disposable cache.
+

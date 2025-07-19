@@ -38,7 +38,8 @@ class LLMService:
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(
             # don't touch this model name, we know exactly what we are doing
-            "gemini-2.5-flash-lite-preview-06-17", system_instruction=SYSTEM_PROMPT
+            "gemini-2.5-flash-lite-preview-06-17",
+            system_instruction=SYSTEM_PROMPT,
         )
 
     def choose_tool(
@@ -50,15 +51,16 @@ class LLMService:
         try:
             # The genai SDK expects a list of genai.Tool objects.
             # We can convert our Python functions to this format.
-            tool_sdk_format = [genai.protos.Tool(
-                function_declarations=[
-                    genai.protos.FunctionDeclaration(
-                        name=name,
-                        description=inspect.getdoc(func)
-                    )
-                    for name, func in tools.items()
-                ]
-            )]
+            tool_sdk_format = [
+                genai.protos.Tool(
+                    function_declarations=[
+                        genai.protos.FunctionDeclaration(
+                            name=name, description=inspect.getdoc(func)
+                        )
+                        for name, func in tools.items()
+                    ]
+                )
+            ]
             print(f"Available tools: {list(tools.keys())} - User input: {user_input}")
             response = self.model.generate_content(
                 user_input,
@@ -87,7 +89,16 @@ class LLMService:
         """
         Generates a narrative description based on the outcome of a tool.
         """
+        context = ""
+        if self.rag_service:
+            context_results = self.rag_service.search(user_input)
+            if context_results:
+                context = "\n".join(context_results)
+
         prompt = f"""
+        Here is some relevant context from the past:
+        {context}
+
         The player performed an action: "{user_input}"
         This resulted in the following game event: 
         - Tool Used: {tool_name}

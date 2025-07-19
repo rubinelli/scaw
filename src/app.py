@@ -7,17 +7,27 @@ from sqlalchemy import create_engine
 from core.llm_service import LLMService
 from core.orchestrator import WardenOrchestrator
 from core.world_generator import WorldGenerator
-from database.database import get_db, dispose_engine
-from database.models import GameEntity, LogEntry, Base, MapPoint
+from database.database import init_engine, get_db, dispose_engine
+from database.models import GameEntity, Base, MapPoint
+from core.rag_service import RAGService
+from ui.character_creation_view import render_character_creation_view
+from ui.main_view import render_main_view
+from ui.sidebar_view import render_sidebar
 
-DB_FILE = "active_game.db"
+ADVENTURES_DIR = "adventures"
 
 
 def initialize_services():
-    """Initializes and caches the core services."""
+    """Initializes and caches the core services for an active game."""
+    if "rag_service" not in st.session_state:
+        with next(get_db()) as db:
+            st.session_state.rag_service = RAGService(db)
+            st.session_state.rag_service.load_adventure_log()
+            st.toast("Memory Engrams Loaded.")
+
     if "llm_service" not in st.session_state:
         try:
-            st.session_state.llm_service = LLMService()
+            st.session_state.llm_service = LLMService(st.session_state.rag_service)
             st.toast("LLM Service Initialized.")
         except ValueError as e:
             st.error(f"Failed to initialize LLM Service: {e}")
@@ -29,85 +39,150 @@ def initialize_services():
             )
 
 
-def create_new_database():
-    """Wipes and creates a fresh database with the current schema and stamps it."""
-    dispose_engine()
-    if os.path.exists(DB_FILE):
-        os.remove(DB_FILE)
-    engine = create_engine(f"sqlite:///{DB_FILE}")
+def create_database_and_schema(db_path: str):
+    """Creates a new database file, applies the schema, and stamps it with Alembic."""
+    dispose_engine()  # Ensure no lingering connections
+    if os.path.exists(db_path):
+        # This should not happen in the new flow, but as a safeguard
+        st.error(f"Database already exists at {db_path}. Cannot create a new one.")
+        return
+
+    # Create the new database and schema
+    engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
     engine.dispose()
+
+    # Stamp the new database with the latest Alembic revision
     alembic_cfg = AlembicConfig("alembic.ini")
+    # We need to tell Alembic where the database is
+    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
     alembic_command.stamp(alembic_cfg, "head")
-    st.toast("New world created.")
+    st.toast("New world created and sealed with magic.")
 
 
-def show_welcome_screen():
-    """Displays the initial screen for starting or loading a game."""
+def show_launcher():
+    """Displays the main game launcher screen."""
     st.title("Cairn Solo AI Warden")
-    st.write("Welcome, adventurer. Your journey begins here.")
+    st.write("Your journey begins here. Choose your path.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("New Game", use_container_width=True):
-            create_new_database()
-            with next(get_db()) as db:
-                world_generator = WorldGenerator(db)
-                world_generator.generate_new_world()
+    st.subheader("New Adventure")
+    new_adventure_name = st.text_input("Enter a name for your new adventure:")
+    if st.button("Create New Game", use_container_width=True):
+        if not new_adventure_name:
+            st.warning("Please enter a name for your adventure.")
+        else:
+            adventure_file = f"{new_adventure_name.strip().replace(' ', '_')}.db"
+            db_path = os.path.join(ADVENTURES_DIR, adventure_file)
 
-                new_character = GameEntity(
-                    name="Grimgar",
-                    entity_type="Character",
-                    hp=3,
-                    max_hp=3,
-                    strength=12,
-                    max_strength=12,
-                    dexterity=10,
-                    max_dexterity=10,
-                    willpower=8,
-                    max_willpower=8,
+            if os.path.exists(db_path):
+                st.error(
+                    f"An adventure named '{new_adventure_name}' already exists. "
+                    "Please choose a different name."
                 )
-                start_map_point = (
-                    db.query(MapPoint).filter(MapPoint.status == "explored").first()
-                )
-                if start_map_point:
-                    new_character.current_map_point_id = start_map_point.id
-                    if start_map_point.default_location:
-                        new_character.current_location_id = (
-                            start_map_point.default_location.id
+            else:
+                # 1. Create and stamp the new database
+                create_database_and_schema(db_path)
+
+                # 2. Initialize the engine for this new database
+                init_engine(db_path)
+                st.session_state["active_db_path"] = db_path
+
+                # 3. Generate world and character
+                with next(get_db()) as db:
+                    # WorldGenerator will be fully implemented in Task 11
+                    world_generator = WorldGenerator(db)
+                    world_generator.generate_new_world()
+
+                    # Create the character
+                    new_character = GameEntity(
+                        name="Grimgar",
+                        entity_type="Character",
+                        hp=3,
+                        max_hp=3,
+                        strength=12,
+                        max_strength=12,
+                        dexterity=10,
+                        max_dexterity=10,
+                        willpower=8,
+                        max_willpower=8,
+                        attacks='[{"name": "Rusty Sword", "damage": "1d8"}]',
+                    )
+                    start_map_point = (
+                        db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                    )
+                    if start_map_point:
+                        new_character.current_map_point_id = start_map_point.id
+                        if start_map_point.default_location:
+                            new_character.current_location_id = (
+                                start_map_point.default_location.id
+                            )
+                            # Add a hostile wolf for the first encounter
+                            wolf = GameEntity(
+                                name="Starving Wolf",
+                                entity_type="Monster",
+                                hp=4,
+                                max_hp=4,
+                                strength=6,
+                                max_strength=6,
+                                dexterity=12,
+                                max_dexterity=12,
+                                willpower=6,
+                                max_willpower=6,
+                                is_hostile=True,
+                                attacks='[{"name": "Bite", "damage": "1d6"}]',
+                                current_location_id=start_map_point.default_location.id,
+                            )
+                            db.add(wolf)
+
+                    db.add(new_character)
+                    db.commit()
+                    db.refresh(new_character)
+                    st.session_state["character_id"] = new_character.id
+
+                # 4. Set game state and rerun
+                st.session_state["game_active"] = True
+                st.rerun()
+
+    st.divider()
+    st.subheader("Load Existing Adventure")
+
+    if not os.path.exists(ADVENTURES_DIR):
+        os.makedirs(ADVENTURES_DIR)
+
+    adventures = [f for f in os.listdir(ADVENTURES_DIR) if f.endswith(".db")]
+
+    if not adventures:
+        st.info("No existing adventures found.")
+    else:
+        for adventure_db in adventures:
+            adventure_name = os.path.splitext(adventure_db)[0].replace("_", " ")
+            if st.button(f"Load '{adventure_name}'", use_container_width=True):
+                db_path = os.path.join(ADVENTURES_DIR, adventure_db)
+
+                # 1. Initialize engine for the selected database
+                init_engine(db_path)
+                st.session_state["active_db_path"] = db_path
+
+                # 2. Find the active character in the loaded game
+                with next(get_db()) as db:
+                    character = (
+                        db.query(GameEntity)
+                        .filter(
+                            GameEntity.entity_type == "Character",
+                            not GameEntity.is_retired,
                         )
-                        # Add a hostile wolf to the same location
-                        wolf = GameEntity(
-                            name="Starving Wolf",
-                            entity_type="Monster",
-                            hp=4,
-                            max_hp=4,
-                            strength=6,
-                            max_strength=6,
-                            dexterity=12,
-                            max_dexterity=12,
-                            willpower=6,
-                            max_willpower=6,
-                            is_hostile=True,
-                            attacks='[{"name": "Bite", "damage": "1d6"}]',
-                            current_location_id=start_map_point.default_location.id,
+                        .first()
+                    )
+
+                    if character:
+                        st.session_state["character_id"] = character.id
+                        st.session_state["game_active"] = True
+                        st.rerun()
+                    else:
+                        st.error(
+                            "Could not find an active character in this adventure. "
+                            "The file may be corrupted or empty."
                         )
-                        db.add(wolf)
-                
-                # Give the player an attack
-                new_character.attacks = '[{"name": "Rusty Sword", "damage": "1d8"}]'
-
-                db.add(new_character)
-                db.commit()
-                db.refresh(new_character)
-                st.session_state["character_id"] = new_character.id
-
-            st.session_state["game_active"] = True
-            st.rerun()
-
-    with col2:
-        if st.button("Load Game", use_container_width=True):
-            st.warning("Load Game functionality not yet implemented.")
 
 
 def show_main_layout():
@@ -119,90 +194,69 @@ def show_main_layout():
             .filter(GameEntity.id == st.session_state["character_id"])
             .first()
         )
-        log_entries = db.query(LogEntry).order_by(LogEntry.created_at.asc()).all()
 
-        if not character:
-            st.error("Character not found. Please start a new game.")
-            st.session_state["game_active"] = False
-            st.rerun()
+        if not character or character.is_retired:
+            st.title("Your story has ended... for now.")
+            st.write(
+                "The torch has been passed. A new adventurer may rise to continue the legacy."
+            )
+            if st.button("Create New Character", use_container_width=True):
+                # Create a new character in the same world
+                new_character = GameEntity(
+                    name="New Adventurer",
+                    entity_type="Character",
+                    hp=3,
+                    max_hp=3,
+                    strength=10,
+                    max_strength=10,
+                    dexterity=10,
+                    max_dexterity=10,
+                    willpower=10,
+                    max_willpower=10,
+                    attacks='[{"name": "Simple Dagger", "damage": "1d4"}]',
+                )
+                start_map_point = (
+                    db.query(MapPoint).filter(MapPoint.status == "explored").first()
+                )
+                if start_map_point:
+                    new_character.current_map_point_id = start_map_point.id
+                    if start_map_point.default_location:
+                        new_character.current_location_id = (
+                            start_map_point.default_location.id
+                        )
+
+                db.add(new_character)
+                db.commit()
+                db.refresh(new_character)
+                st.session_state["character_id"] = new_character.id
+                st.rerun()
             return
 
-        # --- SIDEBAR ---
-        with st.sidebar:
-            st.title("Player Hub")
-            st.header(character.name)
-            vitals_container = st.container(border=True)
-            col1, col2 = vitals_container.columns(2)
-            col1.metric("HP", f"{character.hp}/{character.max_hp}")
-            col2.metric("Fatigue", character.fatigue)
-            vitals_container.divider()
-            vitals_container.metric(
-                "STR", f"{character.strength}/{character.max_strength}"
-            )
-            vitals_container.metric(
-                "DEX", f"{character.dexterity}/{character.max_dexterity}"
-            )
-            vitals_container.metric(
-                "WIL", f"{character.willpower}/{character.max_willpower}"
-            )
-            st.header("Inventory")
-            st.container(border=True).write("10-slot grid")
-            st.header("Game Controls")
-            st.button("Save Game", use_container_width=True)
-            if st.button("Exit to Main Menu", use_container_width=True):
-                st.session_state["game_active"] = False
-                del st.session_state["character_id"]
-                st.rerun()
-
-        # --- MAIN AREA ---
-        st.title("Adventure Log")
-        with st.container(border=True):
-            st.subheader("Context View")
-            st.write("**Map View**")
-            st.container(border=True).write("Graphviz map will be here.")
-
-        st.subheader("Session View")
-        log_container = st.container(border=True, height=400)
-        for entry in log_entries:
-            with log_container.chat_message(name=entry.source.lower()):
-                st.markdown(entry.content)
-
-        if prompt := st.chat_input("What do you do?"):
-            with next(get_db()) as db:
-                st.session_state.orchestrator.handle_player_input(prompt, db)
-            st.rerun()
+        render_sidebar(character, db)
+        render_main_view(db)
 
 
 def main():
     """Main application entry point."""
     st.set_page_config(page_title="Cairn Solo AI Warden", layout="wide")
 
-    if st.session_state.get("game_active") is False:
-        show_welcome_screen()
-        return
-
-    if st.session_state.get("game_active"):
-        show_main_layout()
-        return
-
-    try:
+    if st.session_state.get("character_creation_active"):
         with next(get_db()) as db:
-            character = (
-                db.query(GameEntity)
-                .filter(
-                    GameEntity.entity_type == "Character",
-                    GameEntity.is_retired == False,  # noqa: E712
-                )
-                .first()
-            )
-            if character:
-                st.session_state["game_active"] = True
-                st.session_state["character_id"] = character.id
-                show_main_layout()
-                return
-    except Exception:
-        pass
-    show_welcome_screen()
+            render_character_creation_view(db)
+        return
+
+    # The main logic is now a simple switch based on the "game_active" state
+    if st.session_state.get("game_active"):
+        if "active_db_path" in st.session_state:
+            init_engine(st.session_state["active_db_path"])
+            show_main_layout()
+        else:
+            # This case should not happen, but as a safeguard
+            st.error("Game is active but no database path is set. Returning to menu.")
+            st.session_state["game_active"] = False
+            st.rerun()
+    else:
+        show_launcher()
 
 
 if __name__ == "__main__":

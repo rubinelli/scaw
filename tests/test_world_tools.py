@@ -42,11 +42,11 @@ def test_get_character_sheet(db_session):
 
 def test_deal_damage(db_session):
     attacker = GameEntity(
-        name="Attacker", entity_type="Character", attacks=[{"name": "Sword", "damage": "1d6"}]
+        name="Attacker",
+        entity_type="Character",
+        attacks=[{"name": "Sword", "damage": "1d6"}],
     )
-    target = GameEntity(
-        name="Target", entity_type="Monster", hp=10, strength=12
-    )
+    target = GameEntity(name="Target", entity_type="Monster", hp=10, strength=12)
     db_session.add_all([attacker, target])
     db_session.commit()
     result = world_tools.deal_damage(db_session, "Attacker", "Target")
@@ -56,7 +56,9 @@ def test_deal_damage(db_session):
 
 def test_deal_damage_with_scar(db_session):
     attacker = GameEntity(
-        name="Attacker", entity_type="Character", attacks='[{"name": "Axe", "damage": "5"}]'
+        name="Attacker",
+        entity_type="Character",
+        attacks='[{"name": "Axe", "damage": "5"}]',
     )
     target = GameEntity(
         name="Target", entity_type="Monster", hp=5, max_hp=5, strength=10
@@ -109,4 +111,3 @@ def test_make_camp(db_session):
     result = world_tools.make_camp(db_session, "Test Character")
     assert result["success"] is True
     assert char.hp == 10
-

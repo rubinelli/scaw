@@ -1,0 +1,8 @@
+streamlit
+sqlalchemy
+alembic
+python-dotenv
+google-generativeai
+graphviz
+cognee-core
+lancedb

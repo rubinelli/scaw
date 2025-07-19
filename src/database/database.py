@@ -1,15 +1,26 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
-DATABASE_URL = "sqlite:///active_game.db"
-
-# This engine is a long-lived, global object that maintains a connection pool.
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# The engine is now a global variable that can be re-initialized.
+engine = None
+SessionLocal = None
 
 
-def get_db():
-    """Provides a database session, ensuring it's closed after use."""
+def init_engine(db_path: str):
+    """Initializes the database engine for the given database file."""
+    global engine, SessionLocal
+    database_url = f"sqlite:///{db_path}"
+    engine = create_engine(database_url, connect_args={"check_same_thread": False})
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db() -> Session:
+    """
+    Provides a database session from the currently initialized engine.
+    Raises an exception if the engine is not initialized.
+    """
+    if not SessionLocal:
+        raise Exception("Database engine not initialized. Call init_engine() first.")
     db = SessionLocal()
     try:
         yield db
@@ -18,7 +29,6 @@ def get_db():
 
 
 def dispose_engine():
-    """Explicitly disposes of the engine's connection pool.
-    This is necessary to release file locks before operations like deletion.
-    """
-    engine.dispose()
+    """Explicitly disposes of the current engine's connection pool."""
+    if engine:
+        engine.dispose()
