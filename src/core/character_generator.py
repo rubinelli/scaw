@@ -66,6 +66,8 @@ class CharacterGenerator:
 
         for key, value in background.items():
             if key not in ["name", "starting_gear", "names"]:
-                character_sheet["background_specific"][key] = value[self._d6()]
+                roll_result = value[self._d6()]
+                character_sheet["background_specific"][key] = roll_result["description"]
+                character_sheet["starting_gear"].extend(roll_result["items"])
 
         return character_sheet
