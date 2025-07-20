@@ -90,8 +90,8 @@ def show_launcher():
 
                 # 3. Generate world and character
                 with next(get_db()) as db:
-                    # WorldGenerator will be fully implemented in Task 11
-                    world_generator = WorldGenerator(db)
+                    llm_service = LLMService()
+                    world_generator = WorldGenerator(db, llm_service)
                     world_generator.generate_new_world()
 
                     # Create the character
@@ -113,10 +113,16 @@ def show_launcher():
                     )
                     if start_map_point:
                         new_character.current_map_point_id = start_map_point.id
-                        if start_map_point.default_location:
-                            new_character.current_location_id = (
-                                start_map_point.default_location.id
+                        entry_location = (
+                            db.query(Location)
+                            .filter(
+                                Location.map_point_id == start_map_point.id,
+                                Location.is_entry_point == True, # noqa: E712
                             )
+                            .first()
+                        )
+                        if entry_location:
+                            new_character.current_location_id = entry_location.id
                             # Add a hostile wolf for the first encounter
                             wolf = GameEntity(
                                 name="Starving Wolf",
@@ -131,7 +137,8 @@ def show_launcher():
                                 max_willpower=6,
                                 is_hostile=True,
                                 attacks='[{"name": "Bite", "damage": "1d6"}]',
-                                current_location_id=start_map_point.default_location.id,
+                                current_location_id=entry_location.id,
+                                current_map_point_id=start_map_point.id,
                             )
                             db.add(wolf)
 

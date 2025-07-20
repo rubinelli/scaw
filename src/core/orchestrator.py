@@ -49,6 +49,7 @@ class WardenOrchestrator:
         context_prompt = ""
         if player and player.current_location:
             location_name = player.current_location.name
+            map_point_summary = player.current_map_point.summary
             entities_at_location = (
                 db.query(GameEntity)
                 .filter(
@@ -73,6 +74,7 @@ class WardenOrchestrator:
             context_names = ", ".join(context_list) or "nothing of interest"  # type: ignore
 
             context_prompt = f"""
+Area: {map_point_summary}
 You are at: {location_name}.
 The following are here: {context_names}.
 """

@@ -100,19 +100,14 @@ class MapPoint(Base):
     status = Column(String, nullable=False)  # "hidden", "rumored", "known", "explored"
     position_x = Column(Integer)
     position_y = Column(Integer)
+    summary = Column(Text)
 
-    default_location_id = Column(
-        Integer, ForeignKey("location.id", use_alter=True), nullable=True
-    )
-    default_location = relationship(
-        "Location", foreign_keys=[default_location_id], post_update=True
-    )
-
-    entities = relationship("GameEntity", back_populates="current_map_point")
     locations = relationship(
         "Location", back_populates="map_point", foreign_keys="Location.map_point_id"
     )
 
+    entities = relationship("GameEntity", back_populates="current_map_point")
+    
     paths_from = relationship(
         "Path", foreign_keys="Path.start_point_id", back_populates="start_point"
     )
@@ -128,6 +123,7 @@ class Location(Base):
     name = Column(String, nullable=False)
     description = Column(Text)
     contents = Column(JSON)
+    is_entry_point = Column(Boolean, default=False)
 
     map_point_id = Column(Integer, ForeignKey("map_point.id"), nullable=False)
     map_point = relationship(

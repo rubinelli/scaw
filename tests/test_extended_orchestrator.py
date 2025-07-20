@@ -59,7 +59,9 @@ def test_handle_input_tool_fails(orchestrator, db_session):
 def test_npc_reaction_non_attack(orchestrator, db_session):
     """Tests that a hostile NPC does not react if the player's action is not an attack."""
     # Setup the world
-    map_point = MapPoint(name="Dark Cave", status="known")
+    map_point = MapPoint(
+        name="Dark Cave", status="known", summary="A dark and spooky cave."
+    )
     location = Location(
         name="Cave Interior", description="A dark cave.", map_point=map_point
     )
@@ -69,6 +71,7 @@ def test_npc_reaction_non_attack(orchestrator, db_session):
         hp=10,
         strength=10,
         current_location=location,
+        current_map_point=map_point,
     )
     goblin = GameEntity(
         name="Goblin",
@@ -77,6 +80,7 @@ def test_npc_reaction_non_attack(orchestrator, db_session):
         strength=5,
         is_hostile=True,
         current_location=location,
+        current_map_point=map_point,
         attacks='[{"name": "Club", "damage": "1d4"}]',
     )
     db_session.add_all([map_point, location, player, goblin])

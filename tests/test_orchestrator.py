@@ -67,7 +67,9 @@ def test_handle_input_tool_succeeds(orchestrator, db_session):
 def test_npc_reaction(orchestrator, db_session):
     """Tests that a hostile NPC reacts to the player's action."""
     # Setup the world
-    map_point = MapPoint(name="Dark Cave", status="known")
+    map_point = MapPoint(
+        name="Dark Cave", status="known", summary="A dark and spooky cave."
+    )
     location = Location(
         name="Cave Interior", description="A dark cave.", map_point=map_point
     )
@@ -77,6 +79,7 @@ def test_npc_reaction(orchestrator, db_session):
         hp=10,
         strength=10,
         current_location=location,
+        current_map_point=map_point,
         attacks=[{"name": "Sword", "damage": "1d6"}],
     )
     goblin = GameEntity(
@@ -86,6 +89,7 @@ def test_npc_reaction(orchestrator, db_session):
         strength=5,
         is_hostile=True,
         current_location=location,
+        current_map_point=map_point,
         attacks=[{"name": "Club", "damage": "1d4"}],
     )
     db_session.add_all([map_point, location, player, goblin])

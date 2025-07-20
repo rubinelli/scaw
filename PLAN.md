@@ -238,3 +238,38 @@ Items from the PRD's "Out of Scope" section will be considered after the complet
 - VTT Integration.
 - Mobile/Responsive UI.
 - Support for third-party supplements.
+
+---
+
+## Phase 5: Generative World Enrichment
+
+**Goal:** Overhaul the world generation process to create richer, more detailed, and narratively compelling environments. This involves using the LLM to expand simple points of interest into multi-location areas with evocative descriptions and populated contents.
+
+---
+
+### **Task 28: Enhance Database for Richer World Data**
+- **Priority:** Critical
+- **Dependencies:** [3]
+- **Description:** Modify the database schema to support more detailed and LLM-generated world information.
+- **Subtasks:**
+    - **28.1: Add `summary` to `MapPoint`:** Add a `summary` text field to the `MapPoint` model to store an LLM-generated overview of the area.
+    - **28.2: Add `is_entry_point` to `Location`:** Add an `is_entry_point` boolean field to the `Location` model to designate it as the primary entry, replacing the old `default_location` foreign key.
+    - **28.3: Create Database Migration:** Generate and apply a new Alembic migration for these schema changes.
+
+### **Task 29: Overhaul World Generator for LLM-driven Enrichment**
+- **Priority:** Critical
+- **Dependencies:** [7, 11, 28]
+- **Description:** Refactor the `WorldGenerator` to use the `LLMService` to transform basic procedural outputs into rich, multi-location points of interest.
+- **Subtasks:**
+    - **29.1: Inject `LLMService`:** The `WorldGenerator` will be initialized with an `LLMService` instance.
+    - **29.2: Implement Two-Phase Generation:** The process will be split. First, generate the mechanical details of a `MapPoint` (type, name). Second, use a new method to enrich it.
+    - **29.3: Create `_enrich_map_point_with_llm` Method:** This new private method will construct a detailed prompt asking the LLM to act as a game master. The LLM will return a JSON object containing a `summary` for the `MapPoint`, a list of 2-4 interconnected `Locations` (with `name`, `description`, and suggested `contents`), and a simple connection map.
+    - **29.4: Implement LLM Output Processing:** The `WorldGenerator` will parse the LLM's JSON response to create the `Location` and `LocationConnection` records in the database, populating them with the generated descriptions and contents (as `GameEntity` or `Item` records). One location will be marked as the `is_entry_point`.
+
+### **Task 30: Adapt Application to New World Structure**
+- **Priority:** High
+- **Dependencies:** [8, 29]
+- **Description:** Update other parts of the application to correctly use the new, richer world structure.
+- **Subtasks:**
+    - **30.1: Update Orchestrator:** Modify the `WardenOrchestrator` to use the `MapPoint.summary` for context and to place new characters at the `Location` marked `is_entry_point` within the starting `MapPoint`.
+    - **30.2: Adjust Character Placement:** Ensure the new character flow correctly identifies and uses the `is_entry_point` location when a new game begins.

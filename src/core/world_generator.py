@@ -1,6 +1,15 @@
 import random
+import json
 from sqlalchemy.orm import Session
-from database.models import WorldState, MapPoint, Path, Location
+from database.models import (
+    WorldState,
+    MapPoint,
+    Path,
+    Location,
+    LocationConnection,
+    GameEntity,
+    Item,
+)
 from .oracles import (
     CULTURE,
     RESOURCES,
@@ -15,13 +24,15 @@ from .oracles import (
     EASY_TERRAIN,
     PATH_FEATURES,
 )
+from core.llm_service import LLMService
 
 
 class WorldGenerator:
     """Procedurally generates a new world state based on Cairn rules."""
 
-    def __init__(self, db_session: Session):
+    def __init__(self, db_session: Session, llm_service: LLMService):
         self.db = db_session
+        self.llm_service = llm_service
 
     def generate_new_world(self):
         """Main method to orchestrate the world generation process."""
@@ -66,6 +77,131 @@ class WorldGenerator:
         self.db.add(WorldState(key="factions", value=factions))
         self.db.commit()
 
+    def _enrich_map_point_with_llm(self, map_point: MapPoint):
+        """Uses the LLM to generate a rich description and interconnected locations for a MapPoint."""
+        prompt = f"""
+        You are a creative, dark fantasy Game Master generating a new area for a solo RPG based on the game Cairn.
+        The player is exploring a newly discovered point of interest.
+
+        **Point of Interest Type:** {map_point.type}
+        **Initial Name:** {map_point.name}
+        **Initial Description:** {map_point.description}
+
+        Your task is to expand this basic concept into a rich, explorable area.
+        Generate a JSON object with the following structure:
+        1.  `summary`: A 2-3 sentence, evocative summary of the entire area. This will be shown to the player on the world map.
+        2.  `locations`: A list of 2 to 4 distinct, interconnected locations within this area. For each location, provide:
+            *   `name`: A short, evocative name (e.g., "The Sunken Chapel", "Goblin Guard Post").
+            *   `description`: A 2-4 sentence description of the location, focusing on sights, sounds, and smells.
+            *   `contents`: A list of suggested creatures or items found here. Be specific (e.g., ["A rusty sword", "A hungry goblin with 3 HP"]). Keep it simple.
+        3.  `connections`: A dictionary describing how the locations are connected. The key is a location name, and the value is a list of other location names it connects to. Ensure all locations are reachable. The first location in the `locations` list will be the entry point.
+
+        **Example JSON Output:**
+        {{
+            "summary": "A crumbling watchtower stands precariously on the edge of a cliff, battered by salty winds. It has been long abandoned by its original builders, but is now home to something new.",
+            "locations": [
+                {{
+                    "name": "Base of the Tower",
+                    "description": "The tower's base is choked with weeds and rubble. The main door is made of splintered, salt-bleached wood, hanging loosely on a single hinge. A faint, unpleasant smell wafts from within.",
+                    "contents": ["A discarded, empty waterskin", "A set of old, humanoid footprints in the mud"]
+                }},
+                {{
+                    "name": "Guard Room",
+                    "description": "Just inside the door, this small, circular room is filled with debris. A rickety wooden table and a broken chair are the only furnishings. A crude ladder ascends to the next level.",
+                    "contents": ["A goblin guard (HP: 4, Spear)", "A half-eaten, questionable-looking piece of meat"]
+                }},
+                {{
+                    "name": "Rookery",
+                    "description": "The top level is open to the sky, with crumbling crenellations offering a stunning, windswept view of the sea. Nests made of driftwood and bone are crammed into every corner.",
+                    "contents": ["3 Blood-Feather Gulls (HP: 2 each, Sharp Beaks)", "A tarnished silver locket"]
+                }}
+            ],
+            "connections": {{
+                "Base of the Tower": ["Guard Room"],
+                "Guard Room": ["Base of the Tower", "Rookery"],
+                "Rookery": ["Guard Room"]
+            }}
+        }}
+
+        Now, generate the JSON for the provided Point of Interest.
+        """
+        llm_response_str = self.llm_service.generate_response(prompt)
+
+        try:
+            # The response might be wrapped in markdown, so we need to extract the JSON
+            json_str = llm_response_str.strip().replace("```json", "").replace("```", "").strip()
+            enriched_data = json.loads(json_str)
+
+            map_point.summary = enriched_data.get("summary")
+
+            # Create locations
+            created_locations = {}
+            for i, loc_data in enumerate(enriched_data.get("locations", [])):
+                new_loc = Location(
+                    name=loc_data.get("name"),
+                    description=loc_data.get("description"),
+                    map_point=map_point,
+                    is_entry_point=(i == 0),  # First location is the entry point
+                )
+                self.db.add(new_loc)
+                self.db.flush()  # Flush to get the ID for connections
+                created_locations[new_loc.name] = new_loc
+
+                # Populate contents
+                for item_or_entity_name in loc_data.get("contents", []):
+                    # Simple check to differentiate items from entities
+                    if "hp" in item_or_entity_name.lower():
+                        # It's likely a creature
+                        new_entity = GameEntity(
+                            name=item_or_entity_name.split("(")[0].strip(),
+                            entity_type="Monster",
+                            description=item_or_entity_name,
+                            current_location_id=new_loc.id,
+                            current_map_point_id=map_point.id,
+                        )
+                        self.db.add(new_entity)
+                    else:
+                        # It's likely an item
+                        new_item = Item(
+                            name=item_or_entity_name,
+                            description="An item of interest.",
+                            location_id=new_loc.id,
+                        )
+                        self.db.add(new_item)
+
+            # Create connections
+            for source_name, dest_names in enriched_data.get("connections", {}).items():
+                source_loc = created_locations.get(source_name)
+                if source_loc:
+                    for dest_name in dest_names:
+                        dest_loc = created_locations.get(dest_name)
+                        if dest_loc:
+                            # Avoid duplicate connections
+                            existing = self.db.query(LocationConnection).filter(
+                                (LocationConnection.source_location_id == source_loc.id) &
+                                (LocationConnection.destination_location_id == dest_loc.id)
+                            ).first()
+                            if not existing:
+                                conn = LocationConnection(
+                                    source_location_id=source_loc.id,
+                                    destination_location_id=dest_loc.id,
+                                    description=f"A path leads from {source_name} to {dest_name}.",
+                                    is_two_way=True, # Assuming two-way for now
+                                )
+                                self.db.add(conn)
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            print(f"Error processing LLM response for world generation: {e}")
+            # Fallback to a single, simple location if enrichment fails
+            fallback_location = Location(
+                name=f"Entrance to {map_point.name}",
+                description=f"The main entrance to {map_point.name}.",
+                map_point=map_point,
+                is_entry_point=True,
+            )
+            self.db.add(fallback_location)
+
+
     def _generate_topography_and_pois(self):
         # Simplified die drop for topography and POIs
         num_pois = random.randint(3, 8)
@@ -98,25 +234,21 @@ class WorldGenerator:
                 position_x=random.randint(50, 750),
                 position_y=random.randint(50, 450),
             )
+            self.db.add(new_poi)
+            self.db.flush() # Flush to get ID for enrichment
 
-            # Create a default location for the MapPoint
-            default_location = Location(
-                name=f"Entrance to {new_poi.name}",
-                description=f"The main entrance to {new_poi.name}.",
-                contents=[],
-            )
-            new_poi.locations.append(
-                default_location
-            )  # Add location to the map_point's locations
-            new_poi.default_location = default_location  # Set as default location
+            # Enrich the POI with LLM-generated locations and descriptions
+            self._enrich_map_point_with_llm(new_poi)
 
             pois.append(new_poi)
 
         # Set starting POI
-        start_poi = random.choice(pois)
-        start_poi.status = "explored"
-        self.db.add_all(pois)
+        if pois:
+            start_poi = random.choice(pois)
+            start_poi.status = "explored"
+
         self.db.commit()
+
 
     def _generate_paths(self):
         pois = self.db.query(MapPoint).all()
