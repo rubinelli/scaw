@@ -88,67 +88,15 @@ def show_launcher():
                 init_engine(db_path)
                 st.session_state["active_db_path"] = db_path
 
-                # 3. Generate world and character
+                # 3. Generate world
                 with next(get_db()) as db:
                     llm_service = LLMService()
                     world_generator = WorldGenerator(db, llm_service)
                     world_generator.generate_new_world()
-
-                    # Create the character
-                    new_character = GameEntity(
-                        name="Grimgar",
-                        entity_type="Character",
-                        hp=3,
-                        max_hp=3,
-                        strength=12,
-                        max_strength=12,
-                        dexterity=10,
-                        max_dexterity=10,
-                        willpower=8,
-                        max_willpower=8,
-                        attacks='[{"name": "Rusty Sword", "damage": "1d8"}]',
-                    )
-                    start_map_point = (
-                        db.query(MapPoint).filter(MapPoint.status == "explored").first()
-                    )
-                    if start_map_point:
-                        new_character.current_map_point_id = start_map_point.id
-                        entry_location = (
-                            db.query(Location)
-                            .filter(
-                                Location.map_point_id == start_map_point.id,
-                                Location.is_entry_point == True, # noqa: E712
-                            )
-                            .first()
-                        )
-                        if entry_location:
-                            new_character.current_location_id = entry_location.id
-                            # Add a hostile wolf for the first encounter
-                            wolf = GameEntity(
-                                name="Starving Wolf",
-                                entity_type="Monster",
-                                hp=4,
-                                max_hp=4,
-                                strength=6,
-                                max_strength=6,
-                                dexterity=12,
-                                max_dexterity=12,
-                                willpower=6,
-                                max_willpower=6,
-                                is_hostile=True,
-                                attacks='[{"name": "Bite", "damage": "1d6"}]',
-                                current_location_id=entry_location.id,
-                                current_map_point_id=start_map_point.id,
-                            )
-                            db.add(wolf)
-
-                    db.add(new_character)
                     db.commit()
-                    db.refresh(new_character)
-                    st.session_state["character_id"] = new_character.id
 
-                # 4. Set game state and rerun
-                st.session_state["game_active"] = True
+                # 4. Set game state to trigger character creation and rerun
+                st.session_state["character_creation_active"] = True
                 st.rerun()
 
     st.divider()

@@ -409,7 +409,54 @@ def get_location_description(db: Session, character_name: str) -> Dict[str, Any]
     }
 
 
+def look_around(db: Session, player: models.GameEntity) -> None:
+    """
+    Generates and logs a description of the player's current location and its contents.
+    This is a utility function, not an LLM tool.
+    """
+    if not player or not player.current_location:
+        return
+
+    location = player.current_location
+    entities = [
+        e.name for e in location.entities if e.id != player.id and not e.is_retired
+    ]
+    items = [i.name for i in location.items]
+
+    narrative = f"**{location.name}**\n\n{location.description}"
+
+    if entities:
+        narrative += f"\n\nYou see: {', '.join(entities)}."
+    if items:
+        narrative += f"\n\nOn the ground, you notice: {', '.join(items)}."
+
+    # Get connections to other locations within the same MapPoint
+    connections = location.connections_from
+    if connections:
+        connected_locations = [
+            conn.destination_location.name for conn in connections
+        ]
+        narrative += f"\n\nFrom here, you can go to: {', '.join(connected_locations)}."
+
+    # If this is an entry point, also show paths to other MapPoints
+    if location.is_entry_point:
+        map_point = player.current_map_point
+        if map_point:
+            paths = map_point.paths_from
+            if paths:
+                available_paths = [path.end_point.name for path in paths]
+                narrative += f"\n\nYou can travel to other areas: {', '.join(available_paths)}."
+
+    if not entities and not items and not connections:
+        narrative += "\n\nThe area seems quiet and isolated."
+
+    log_entry = models.LogEntry(source="Warden", content=narrative)
+    db.add(log_entry)
+    db.commit()
+
+
 def discover_location(db: Session, location_name: str) -> Dict[str, Any]:
+
     """
     Changes the status of a hidden MapPoint to 'known'.
 
@@ -467,6 +514,10 @@ def move_character(
         return {"error": f"Location '{new_location_name}' not found."}
 
     character.current_location_id = new_location.id
+    db.commit()
+
+    # Describe the new location to the player
+    look_around(db, character)
 
     return {
         "success": True,

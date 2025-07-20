@@ -4,8 +4,9 @@ This module provides the UI for the character creation screen.
 
 import streamlit as st
 from core.character_generator import CharacterGenerator
+from core.world_tools import look_around
 
-from database.models import GameEntity, Item
+from database.models import GameEntity, Item, Location, MapPoint
 
 
 def render_character_creation_view(db):
@@ -78,6 +79,42 @@ def render_character_creation_view(db):
             bond=character_sheet["bond"],
             omen=character_sheet["omen"],
         )
+
+        # Find the starting location
+        start_map_point = (
+            db.query(MapPoint).filter(MapPoint.status == "explored").first()
+        )
+        if start_map_point:
+            new_character.current_map_point = start_map_point
+            entry_location = (
+                db.query(Location)
+                .filter(
+                    Location.map_point_id == start_map_point.id,
+                    Location.is_entry_point == True,  # noqa: E712
+                )
+                .first()
+            )
+            if entry_location:
+                new_character.current_location = entry_location
+                # Add a hostile wolf for the first encounter
+                wolf = GameEntity(
+                    name="Starving Wolf",
+                    entity_type="Monster",
+                    hp=4,
+                    max_hp=4,
+                    strength=6,
+                    max_strength=6,
+                    dexterity=12,
+                    max_dexterity=12,
+                    willpower=6,
+                    max_willpower=6,
+                    is_hostile=True,
+                    attacks='[{"name": "Bite", "damage": "1d6"}]',
+                    current_location_id=entry_location.id,
+                    current_map_point_id=start_map_point.id,
+                )
+                db.add(wolf)
+
         db.add(new_character)
         db.commit()
 
@@ -85,6 +122,9 @@ def render_character_creation_view(db):
             item = Item(name=item_name, owner=new_character)
             db.add(item)
         db.commit()
+
+        # Generate the initial location description
+        look_around(db, new_character)
 
         st.session_state["character_id"] = new_character.id
         st.session_state["character_creation_active"] = False
