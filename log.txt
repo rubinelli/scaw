@@ -1,0 +1,11 @@
+TypeError: LLMService.__init__() takes 1 positional argument but 2 were given
+
+File "C:\Users\marcos\code\scaw\src\app.py", line 264, in <module>
+    main()
+File "C:\Users\marcos\code\scaw\src\app.py", line 253, in main
+    show_main_layout()
+File "C:\Users\marcos\code\scaw\src\app.py", line 191, in show_main_layout
+    initialize_services()
+File "C:\Users\marcos\code\scaw\src\app.py", line 31, in initialize_services
+    st.session_state.llm_service = LLMService(st.session_state.rag_service)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

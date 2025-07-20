@@ -102,6 +102,6 @@ The development is done in a Windows machine, so any commands called should be W
 
 ### 4.4. RAG Context Store
 
--   **Integration:** The `LLMService` will be the integration point for the RAG system (Cognee).
+-   **Integration:** The `LLMService` will be the integration point for the RAG system (LangChain with ChromaDB).
 -   **Data Flow:** When an adventure is loaded, the `LogEntry` table from the SQLite database will be used to build/rebuild the in-memory RAG index. This ensures the context is always in sync with the canonical game state and that the index is treated as a disposable cache.
 

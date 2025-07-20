@@ -2,7 +2,6 @@
 Tests for the character_generator module.
 """
 
-import pytest
 from core.character_generator import CharacterGenerator
 
 

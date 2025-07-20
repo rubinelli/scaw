@@ -1,5 +1,6 @@
 import os
 import inspect
+import concurrent.futures
 from typing import Any, Callable, Dict
 import google.generativeai as genai
 
@@ -49,8 +50,6 @@ class LLMService:
         Given user input and a list of tools, asks the LLM to choose a tool.
         """
         try:
-            # The genai SDK expects a list of genai.Tool objects.
-            # We can convert our Python functions to this format.
             tool_sdk_format = [
                 genai.protos.Tool(
                     function_declarations=[
@@ -62,10 +61,15 @@ class LLMService:
                 )
             ]
             print(f"Available tools: {list(tools.keys())} - User input: {user_input}")
-            response = self.model.generate_content(
-                user_input,
-                tools=tool_sdk_format,
-            )
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    self.model.generate_content,
+                    user_input,
+                    tools=tool_sdk_format,
+                )
+                response = future.result()
+
             print(f"LLM response: {response}")
             if (
                 response.candidates
@@ -89,16 +93,7 @@ class LLMService:
         """
         Generates a narrative description based on the outcome of a tool.
         """
-        context = ""
-        if self.rag_service:
-            context_results = self.rag_service.search(user_input)
-            if context_results:
-                context = "\n".join(context_results)
-
         prompt = f"""
-        Here is some relevant context from the past:
-        {context}
-
         The player performed an action: "{user_input}"
         This resulted in the following game event: 
         - Tool Used: {tool_name}
@@ -111,7 +106,9 @@ class LLMService:
     def generate_response(self, prompt: str) -> str:
         """Generates a standard text response from the LLM."""
         try:
-            response = self.model.generate_content(prompt)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self.model.generate_content, prompt)
+                response = future.result()
             return response.text
         except Exception as e:
             print(f"Error generating LLM response: {e}")

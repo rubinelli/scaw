@@ -5,6 +5,8 @@ assets/external/
 *.db
 __pycache__/
 *.egg-info/
+chroma_db/
+adventures/
 
 # Logs
 logs

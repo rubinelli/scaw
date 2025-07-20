@@ -75,7 +75,7 @@ The Solo Cairn AI Warden is a Python application built with the Streamlit framew
 ### 3.1. Technology Stack
 *   **Application Framework:** Python with [Streamlit](https://streamlit.io/)
 *   **Package Management/Virtual Env:** [uv](https://github.com/astral-sh/uv)
-*   **Context Store/RAG:** [Cognee](https://github.com/topoteretes/cognee)
+*   **Context Store/RAG:** [LangChain](https://python.langchain.com/) with [ChromaDB](https://www.trychroma.com/)
 *   **State Database:** SQLite.
 
 ### 3.2. Architecture

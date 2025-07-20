@@ -150,10 +150,10 @@ This revised plan re-orders the tasks for efficiency and renumbers them sequenti
 
 ---
 
-### **Task 19: Integrate RAG Context Store (Cognee)**
+### **Task 19: Integrate RAG Context Store (LangChain & ChromaDB)**
 - **Priority:** high
 - **Dependencies:** [8]
-- **Description:** Integrate Cognee to provide the AI Warden with a long-term, searchable memory of the narrative log, improving context and consistency. The RAG index should be built from the active adventure's database.
+- **Description:** Integrate LangChain and ChromaDB to provide the AI Warden with a long-term, searchable memory of the narrative log, improving context and consistency. The RAG index should be built from the active adventure's database.
 
 ### **Task 20: Implement Multi-Provider LLM Service & Settings UI**
 - **Priority:** medium

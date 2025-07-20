@@ -14,6 +14,7 @@ from ui.character_creation_view import render_character_creation_view
 from ui.main_view import render_main_view
 from ui.sidebar_view import render_sidebar
 
+
 ADVENTURES_DIR = "adventures"
 
 
@@ -27,7 +28,7 @@ def initialize_services():
 
     if "llm_service" not in st.session_state:
         try:
-            st.session_state.llm_service = LLMService(st.session_state.rag_service)
+            st.session_state.llm_service = LLMService()
             st.toast("LLM Service Initialized.")
         except ValueError as e:
             st.error(f"Failed to initialize LLM Service: {e}")
@@ -169,7 +170,7 @@ def show_launcher():
                         db.query(GameEntity)
                         .filter(
                             GameEntity.entity_type == "Character",
-                            not GameEntity.is_retired,
+                            GameEntity.is_retired == False, # noqa: E712
                         )
                         .first()
                     )

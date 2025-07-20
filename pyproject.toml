@@ -1,0 +1,18 @@
+[project]
+name = "scaw"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit",
+    "sqlalchemy",
+    "alembic",
+    "python-dotenv",
+    "google-generativeai",
+    "graphviz",
+    "langchain",
+    "langchain-community",
+    "langchain-google-genai",
+    "chromadb",
+]
