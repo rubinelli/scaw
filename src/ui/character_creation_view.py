@@ -96,24 +96,6 @@ def render_character_creation_view(db):
             )
             if entry_location:
                 new_character.current_location = entry_location
-                # Add a hostile wolf for the first encounter
-                wolf = GameEntity(
-                    name="Starving Wolf",
-                    entity_type="Monster",
-                    hp=4,
-                    max_hp=4,
-                    strength=6,
-                    max_strength=6,
-                    dexterity=12,
-                    max_dexterity=12,
-                    willpower=6,
-                    max_willpower=6,
-                    is_hostile=True,
-                    attacks='[{"name": "Bite", "damage": "1d6"}]',
-                    current_location_id=entry_location.id,
-                    current_map_point_id=start_map_point.id,
-                )
-                db.add(wolf)
 
         db.add(new_character)
         db.commit()
