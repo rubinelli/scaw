@@ -304,24 +304,48 @@ def rest(db: Session, character_name: str) -> Dict[str, Any]:
 
 def make_camp(db: Session, character_name: str) -> Dict[str, Any]:
     """
-    Allows a character to make camp for the day to recover fully. (Placeholder)
+    Allows a character to make camp for the night, recovering HP and fatigue while advancing time.
 
     Args:
         db: The database session.
         character_name: The name of the character making camp.
 
     Returns:
-        A dictionary confirming the character has made camp.
+        A dictionary confirming the character has made camp and any tension escalations.
     """
     entity = _find_entity_by_name(db, character_name)
     if not entity:
         return {"error": f"Character '{character_name}' not found."}
 
-    # Placeholder: In the future, this will handle fatigue, rations, etc.
+    # Restore HP and reduce fatigue
     entity.hp = entity.max_hp
+    entity.fatigue = max(0, entity.fatigue - 1)
+    
+    # Advance time by 1 watch and check for tension escalations
+    condition_tracker = ConditionTracker(db)
+    escalated_events = condition_tracker.advance_time(watches=1)
+    
+    # Build response message
+    message = f"{entity.name} sets up camp for the night, tending to wounds and resting. **Time passes: 1 watch**"
+    
+    # Handle tension escalations
+    escalation_messages = []
+    for event in escalated_events:
+        if event.status == "failed":
+            escalation_messages.append(f"**TENSION FAILURE:** {event.title} has spiraled out of control!")
+            # Apply failure consequences
+            _apply_tension_failure_consequences(db, event)
+        else:
+            escalation_messages.append(f"**TENSION ESCALATION:** {event.title} grows more urgent (Severity {event.severity_level})!")
+    
+    if escalation_messages:
+        message += "\n\n" + "\n".join(escalation_messages)
+    
     return {
         "success": True,
-        "message": f"{entity.name} sets up a small, rough camp for the night, finding a brief respite.",
+        "message": message,
+        "time_advanced": 1,
+        "escalated_events": len(escalated_events)
     }
 
 
@@ -846,4 +870,317 @@ def get_npc_relationship_info(db: Session, npc_name: str) -> Dict[str, Any]:
         "disposition": npc.disposition,
         "is_hostile": npc.is_hostile,
         "recent_history": relationship["history"][-3:] if relationship["history"] else []
+    }
+
+
+# --- Travel & Time Advancement Tools ---
+
+
+def travel_to_map_point(db: Session, character_name: str, destination_name: str) -> Dict[str, Any]:
+    """
+    Moves a character to a different MapPoint, advancing time based on the path's watch cost.
+
+    Args:
+        db: The database session.
+        character_name: The name of the character traveling.
+        destination_name: The name of the destination MapPoint.
+
+    Returns:
+        A dictionary confirming the travel and any tension escalations.
+    """
+    character = _find_entity_by_name(db, character_name)
+    if not character:
+        return {"error": f"Character '{character_name}' not found."}
+    
+    if not character.current_map_point:
+        return {"error": f"Character '{character_name}' is not at a valid location."}
+    
+    # Find the destination MapPoint
+    destination = (
+        db.query(models.MapPoint)
+        .filter(func.lower(models.MapPoint.name) == destination_name.lower())
+        .first()
+    )
+    if not destination:
+        return {"error": f"Destination '{destination_name}' not found."}
+    
+    # Find the path between current and destination MapPoints
+    path = (
+        db.query(models.Path)
+        .filter(
+            models.Path.start_point_id == character.current_map_point.id,
+            models.Path.end_point_id == destination.id
+        )
+        .first()
+    )
+    
+    if not path:
+        return {"error": f"No path found from {character.current_map_point.name} to {destination_name}."}
+    
+    # Find the entry point location at the destination
+    entry_location = (
+        db.query(models.Location)
+        .filter(
+            models.Location.map_point_id == destination.id,
+            models.Location.is_entry_point == True
+        )
+        .first()
+    )
+    
+    if not entry_location:
+        return {"error": f"No entry point found at {destination_name}."}
+    
+    # Move the character
+    character.current_location_id = entry_location.id
+    character.current_map_point_id = destination.id
+    
+    # Advance time by the path's watch cost
+    condition_tracker = ConditionTracker(db)
+    escalated_events = condition_tracker.advance_time(watches=path.watches)
+    
+    # Build response message
+    message = f"{character.name} travels to {destination.name}. **Time passes: {path.watches} watch{'es' if path.watches != 1 else ''}**"
+    
+    # Handle tension escalations
+    escalation_messages = []
+    for event in escalated_events:
+        if event.status == "failed":
+            escalation_messages.append(f"**TENSION FAILURE:** {event.title} has spiraled out of control!")
+            # Apply failure consequences
+            _apply_tension_failure_consequences(db, event)
+        else:
+            escalation_messages.append(f"**TENSION ESCALATION:** {event.title} grows more urgent (Severity {event.severity_level})!")
+    
+    if escalation_messages:
+        message += "\n\n" + "\n".join(escalation_messages)
+    
+    # Describe the new location
+    look_around(db, character)
+    
+    return {
+        "success": True,
+        "message": message,
+        "destination": destination.name,
+        "time_advanced": path.watches,
+        "escalated_events": len(escalated_events)
+    }
+
+
+# --- Tension Event Consequence Tools ---
+
+
+def _apply_tension_failure_consequences(db: Session, failed_event: models.TensionEvent) -> None:
+    """
+    Apply consequences when a tension event fails completely.
+    Uses LLM to intelligently select appropriate consequences.
+    
+    Args:
+        db: The database session.
+        failed_event: The tension event that failed.
+    """
+    # Import here to avoid circular imports
+    from .llm_service import LLMService
+    
+    # Available consequence tools
+    available_tools = [
+        "spawn_hostile_entity",
+        "block_location_access", 
+        "create_cascading_tension_event",
+        "update_npc_relationship"
+    ]
+    
+    try:
+        llm_service = LLMService()
+        consequence_response = llm_service.generate_tension_failure_consequences(
+            failed_event, available_tools
+        )
+        
+        # Parse the LLM response and execute consequences
+        # For now, apply a simple default consequence based on severity
+        if failed_event.max_severity >= 4:
+            # High severity: spawn hostile entity
+            spawn_hostile_entity(
+                db,
+                entity_name=f"Consequence of {failed_event.title}",
+                description=f"A hostile presence manifested by the failure of {failed_event.title}"
+            )
+        elif failed_event.max_severity >= 2:
+            # Medium severity: create cascading event
+            create_cascading_tension_event(
+                db,
+                title=f"Aftermath of {failed_event.title}",
+                description=f"The failure of {failed_event.title} has created new problems.",
+                source_event_id=failed_event.id,
+                severity_level=1,
+                deadline_watches=3
+            )
+        
+        # Log the consequence application
+        log_entry = models.LogEntry(
+            source="Warden",
+            content=f"**CONSEQUENCE:** The failure of '{failed_event.title}' has reshaped the world. {consequence_response}",
+            metadata_dict={"failed_tension_event_id": failed_event.id}
+        )
+        db.add(log_entry)
+        db.commit()
+        
+    except Exception as e:
+        # Fallback if LLM fails
+        print(f"Error applying tension consequences: {e}")
+        log_entry = models.LogEntry(
+            source="Warden",
+            content=f"**CONSEQUENCE:** The failure of '{failed_event.title}' has permanent consequences for the world.",
+            metadata_dict={"failed_tension_event_id": failed_event.id}
+        )
+        db.add(log_entry)
+        db.commit()
+
+
+def spawn_hostile_entity(
+    db: Session, 
+    entity_name: str, 
+    entity_type: str = "NPC",
+    location_name: str = None,
+    description: str = "A hostile entity spawned by escalating tensions."
+) -> Dict[str, Any]:
+    """
+    Creates a new hostile entity as a consequence of failed tension events.
+    
+    Args:
+        db: The database session.
+        entity_name: The name of the new hostile entity.
+        entity_type: The type of entity ("NPC" or "Monster").
+        location_name: The location to spawn the entity (defaults to player's location).
+        description: Description of the entity.
+        
+    Returns:
+        A dictionary confirming the entity was spawned.
+    """
+    # Find target location
+    target_location = None
+    if location_name:
+        target_location = (
+            db.query(models.Location)
+            .filter(func.lower(models.Location.name) == location_name.lower())
+            .first()
+        )
+    else:
+        # Default to player's current location
+        player = _find_entity_by_name(db, "player")
+        if player:
+            target_location = player.current_location
+    
+    if not target_location:
+        return {"error": "Could not determine spawn location."}
+    
+    # Create the hostile entity
+    new_entity = models.GameEntity(
+        name=entity_name,
+        entity_type=entity_type,
+        hp=random.randint(3, 8),
+        max_hp=random.randint(3, 8),
+        strength=random.randint(8, 12),
+        max_strength=random.randint(8, 12),
+        dexterity=random.randint(8, 12),
+        max_dexterity=random.randint(8, 12),
+        willpower=random.randint(8, 12),
+        max_willpower=random.randint(8, 12),
+        armor=random.randint(0, 2),
+        disposition="hostile",
+        is_hostile=True,
+        description=description,
+        current_location_id=target_location.id,
+        current_map_point_id=target_location.map_point_id,
+        attacks='[{"name": "Attack", "damage": "1d6"}]'
+    )
+    
+    db.add(new_entity)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"A hostile {entity_name} has appeared at {target_location.name}!",
+        "entity_name": entity_name,
+        "location": target_location.name
+    }
+
+
+def block_location_access(db: Session, location_name: str, reason: str = "blocked by consequences") -> Dict[str, Any]:
+    """
+    Blocks access to a location as a consequence of failed tension events.
+    
+    Args:
+        db: The database session.
+        location_name: The name of the location to block.
+        reason: The reason for blocking access.
+        
+    Returns:
+        A dictionary confirming the location was blocked.
+    """
+    location = (
+        db.query(models.Location)
+        .filter(func.lower(models.Location.name) == location_name.lower())
+        .first()
+    )
+    
+    if not location:
+        return {"error": f"Location '{location_name}' not found."}
+    
+    # Add a blocking description to the location
+    if location.description:
+        location.description += f"\n\n**BLOCKED:** {reason}"
+    else:
+        location.description = f"**BLOCKED:** {reason}"
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Access to {location_name} has been blocked: {reason}",
+        "location": location_name
+    }
+
+
+def create_cascading_tension_event(
+    db: Session,
+    title: str,
+    description: str,
+    source_event_id: int,
+    severity_level: int = 1,
+    deadline_watches: int = 5
+) -> Dict[str, Any]:
+    """
+    Creates a new tension event as a consequence of another event's failure.
+    
+    Args:
+        db: The database session.
+        title: The title of the new tension event.
+        description: The description of the new tension event.
+        source_event_id: The ID of the event that caused this one.
+        severity_level: The starting severity level.
+        deadline_watches: The number of watches until escalation.
+        
+    Returns:
+        A dictionary confirming the new tension event was created.
+    """
+    new_event = models.TensionEvent(
+        title=title,
+        description=description,
+        source_type="cascading_failure",
+        source_data=json.dumps({"source_event_id": source_event_id}),
+        severity_level=severity_level,
+        max_severity=5,
+        deadline_watches=deadline_watches,
+        watches_remaining=deadline_watches,
+        status="active"
+    )
+    
+    db.add(new_event)
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"A new crisis has emerged: {title}",
+        "event_title": title,
+        "severity": severity_level
     }

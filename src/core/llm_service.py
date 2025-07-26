@@ -56,8 +56,8 @@ class LLMService:
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set.")
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(
+        genai.configure(api_key=self.api_key)  # type: ignore
+        self.model = genai.GenerativeModel( # type: ignore
             # don't touch this model name, we know exactly what we are doing
             "gemini-2.5-flash-lite-preview-06-17",
             system_instruction=SYSTEM_PROMPT,
@@ -71,9 +71,9 @@ class LLMService:
         """
         try:
             tool_sdk_format = [
-                genai.protos.Tool(
+                genai.protos.Tool( # type: ignore
                     function_declarations=[
-                        genai.protos.FunctionDeclaration(
+                        genai.protos.FunctionDeclaration( # type: ignore
                             name=name, description=inspect.getdoc(func)
                         )
                         for name, func in tools.items()
@@ -168,6 +168,63 @@ class LLMService:
         Format: 1-2 sentences describing their reaction, potentially including dialogue.
         
         Example: "The merchant's face pales as he watches the violence unfold. 'Please,' he whispers, backing toward the door, 'I want no part in this bloodshed.'"
+        """
+        return self.generate_response(prompt)
+
+    def generate_tension_escalation_narrative(self, tension_event, new_severity: int) -> str:
+        """Generate narrative for tension event escalation"""
+        prompt = f"""
+        **TENSION ESCALATION**
+        
+        Event: {tension_event.title}
+        Description: {tension_event.description}
+        Source: {tension_event.source_type}
+        New Severity Level: {new_severity}/{tension_event.max_severity}
+        
+        Generate a brief, urgent narrative describing how this tension has escalated.
+        The tone should increase in urgency based on severity level:
+        - Level 1-2: Subtle warnings, growing concern
+        - Level 3-4: Clear danger, visible deterioration
+        - Level 5: Crisis point, immediate peril
+        
+        Format: 2-3 sentences that convey the escalating danger without revealing specific mechanics.
+        
+        Example: "The merchant's debts have attracted dangerous attention. Shadowy figures now lurk near his shop, and whispers of violence fill the tavern. Time is running short before this situation explodes into bloodshed."
+        """
+        return self.generate_response(prompt)
+
+    def generate_tension_failure_consequences(self, failed_event, available_tools: list) -> str:
+        """Generate LLM-driven consequences for failed tension events"""
+        prompt = f"""
+        **TENSION EVENT FAILURE**
+        
+        Failed Event: {failed_event.title}
+        Description: {failed_event.description}
+        Source: {failed_event.source_type}
+        Max Severity: {failed_event.max_severity}
+        
+        This tension event has completely failed and now requires permanent consequences for the world.
+        
+        **Available Consequence Tools:**
+        {', '.join(available_tools)}
+        
+        **Severity-Based Consequences:**
+        - Low severity (1-2): Minor inconveniences, relationship changes
+        - Medium severity (3-4): Hostile NPCs, blocked access, item loss  
+        - High severity (5): Major world changes, cascading events, permanent alterations
+        
+        Choose 1-2 appropriate consequence tools and provide the arguments needed to call them.
+        The consequences should feel like natural results of this specific tension event failing.
+        
+        **Response Format:**
+        Tool: [tool_name]
+        Arguments: [specific arguments as JSON]
+        Narrative: [brief explanation of why this consequence makes sense]
+        
+        Example:
+        Tool: spawn_hostile_entity
+        Arguments: {{"entity_name": "Debt Collector", "description": "A scarred enforcer sent to collect what's owed"}}
+        Narrative: The merchant's unpaid debts have attracted violent attention from the criminal underworld.
         """
         return self.generate_response(prompt)
 
