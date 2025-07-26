@@ -185,3 +185,50 @@ class Path(Base):
     end_point = relationship(
         "MapPoint", foreign_keys=[end_point_id], back_populates="paths_to"
     )
+
+
+class TensionEvent(Base):
+    __tablename__ = "tension_event"
+    
+    id = Column(Integer, primary_key=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    source_type = Column(String, nullable=False)  # "omen", "npc_request", "world_event"
+    source_data = Column(JSON)  # Store omen text, NPC id, etc.
+    
+    severity_level = Column(Integer, default=1)  # 1-5 scale
+    max_severity = Column(Integer, default=5)
+    deadline_watches = Column(Integer, nullable=False)
+    watches_remaining = Column(Integer, nullable=False)
+    
+    status = Column(String, default="active")  # "active", "resolved", "failed", "escalated"
+    resolution_method = Column(String)  # Track how it was resolved for consequences
+    
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    resolved_at = Column(DateTime)
+    
+    # Foreign keys for location/entity context
+    origin_map_point_id = Column(Integer, ForeignKey("map_point.id"))
+    origin_map_point = relationship("MapPoint")
+    
+    # Relationships
+    conditions = relationship("ResolutionCondition", back_populates="tension_event", cascade="all, delete-orphan")
+
+
+class ResolutionCondition(Base):
+    __tablename__ = "resolution_condition"
+    
+    id = Column(Integer, primary_key=True)
+    tension_event_id = Column(Integer, ForeignKey("tension_event.id"), nullable=False)
+    
+    condition_type = Column(String, nullable=False)  # "item_delivery", "entity_death", "location_visit", "faction_standing"
+    description = Column(String, nullable=False)  # Human-readable description
+    
+    # Flexible target data structure
+    target_data = Column(JSON, nullable=False)  # {"item_name": "Healing Herb", "target_entity_id": 123}
+    
+    is_met = Column(Boolean, default=False)
+    met_at = Column(DateTime)
+    
+    # Relationships
+    tension_event = relationship("TensionEvent", back_populates="conditions")

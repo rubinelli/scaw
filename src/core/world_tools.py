@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import models
 from .oracles import OracleRoller
+from .condition_tracker import ConditionTracker
 
 """
 This module defines the "World Tools" that the AI Warden can use to interact
@@ -185,6 +186,14 @@ def deal_damage(db: Session, attacker_name: str, target_name: str) -> Dict[str, 
         target.is_retired = True
         result["is_dead"] = True
         result["final_state"] = f"{target.name} has been slain."
+        
+        # Check tension event conditions for entity death
+        condition_tracker = ConditionTracker(db)
+        condition_tracker.check_all_conditions("entity_death", {
+            "entity_name": target.name,
+            "entity_id": target.id,
+            "killed_by": attacker.name
+        })
 
     print(f"Attack result: {result}")
     return result
@@ -315,6 +324,55 @@ def make_camp(db: Session, character_name: str) -> Dict[str, Any]:
     }
 
 
+def give_item(db: Session, giver_name: str, receiver_name: str, item_name: str) -> Dict[str, Any]:
+    """
+    Transfer an item from one entity to another.
+    
+    Args:
+        db: The database session.
+        giver_name: The name of the entity giving the item.
+        receiver_name: The name of the entity receiving the item.
+        item_name: The name of the item to transfer.
+        
+    Returns:
+        A dictionary confirming the item transfer.
+    """
+    giver = _find_entity_by_name(db, giver_name)
+    receiver = _find_entity_by_name(db, receiver_name)
+    
+    if not giver:
+        return {"error": f"Giver '{giver_name}' not found."}
+    if not receiver:
+        return {"error": f"Receiver '{receiver_name}' not found."}
+    
+    # Find and transfer the item
+    item = (
+        db.query(models.Item)
+        .filter_by(owner_entity_id=giver.id, name=item_name)
+        .first()
+    )
+    
+    if not item:
+        return {"error": f"{giver_name} doesn't have {item_name}."}
+    
+    item.owner_entity_id = receiver.id
+    db.commit()
+    
+    # Check tension event conditions for item delivery
+    condition_tracker = ConditionTracker(db)
+    condition_tracker.check_all_conditions("item_delivery", {
+        "giver_name": giver_name,
+        "receiver_name": receiver_name,
+        "item_name": item_name,
+        "item_id": item.id
+    })
+    
+    return {
+        "success": True,
+        "message": f"{giver_name} gave {item_name} to {receiver_name}."
+    }
+
+
 def add_item_to_inventory(
     db: Session,
     character_name: str,
@@ -363,6 +421,15 @@ def add_item_to_inventory(
         )
         db.add(new_item)
         message = f"Added {quantity}x {item_name} to {character_name}'s inventory."
+
+    # Check tension event conditions for item received
+    condition_tracker = ConditionTracker(db)
+    condition_tracker.check_all_conditions("item_received", {
+        "recipient_name": character_name,
+        "recipient_id": entity.id,
+        "item_name": item_name,
+        "quantity": quantity
+    })
 
     return {"success": True, "message": message}
 
@@ -515,6 +582,16 @@ def move_character(
 
     character.current_location_id = new_location.id
     db.commit()
+
+    # Check tension event conditions for location visit
+    condition_tracker = ConditionTracker(db)
+    condition_tracker.check_all_conditions("location_visit", {
+        "character_name": character.name,
+        "character_id": character.id,
+        "location_name": new_location.name,
+        "location_id": new_location.id,
+        "map_point_name": new_location.map_point.name if new_location.map_point else None
+    })
 
     # Describe the new location to the player
     look_around(db, character)
