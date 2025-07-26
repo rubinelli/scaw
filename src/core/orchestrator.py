@@ -1,4 +1,5 @@
 import inspect
+import random
 from sqlalchemy.orm import Session
 from core.llm_service import LLMService
 from database.models import LogEntry, GameEntity, Item
@@ -49,6 +50,7 @@ class WardenOrchestrator:
         context_prompt = ""
         if player and player.current_location:
             location_name = player.current_location.name
+            location_description = player.current_location.description
             map_point_summary = player.current_map_point.summary
             entities_at_location = (
                 db.query(GameEntity)
@@ -74,9 +76,21 @@ class WardenOrchestrator:
             context_names = ", ".join(context_list) or "nothing of interest"  # type: ignore
 
             context_prompt = f"""
-Area: {map_point_summary}
-You are at: {location_name}.
-The following are here: {context_names}.
+**CURRENT SCENE:**
+Area Overview: {map_point_summary}
+Immediate Location: {location_name} - {location_description}
+Present: {context_names}
+
+**ATMOSPHERE CUES:**
+- Consider the time of day and weather
+- Factor in recent events and their emotional aftermath  
+- Note the tension level based on who/what is present
+- Include environmental sounds and smells appropriate to the location
+
+**NARRATIVE FOCUS:**
+- Describe the player's immediate surroundings with rich sensory detail
+- Show how NPCs react to the player's presence and recent actions
+- Hint at potential dangers or opportunities in the environment
 """
 
         # --- Tool Selection Step ---
@@ -116,8 +130,20 @@ The following are here: {context_names}.
         else:
             print("No tool was called by the AI.")
 
+        # --- Proactive NPC Actions Step ---
+        proactive_action = self._check_proactive_npc_actions(db)
+        if proactive_action:
+            npc_actions = [proactive_action]
+        else:
+            npc_actions = []
+
         # --- NPC Reaction Step ---
-        npc_actions = []
+        # Enhanced NPC reactions based on player actions
+        if player_action_result and not player_action_result.get("error"):
+            npc_reactions = self._generate_npc_reactions(db, player_input, tool_name, player_action_result)
+            npc_actions.extend(npc_reactions)
+
+        # Combat reactions (hostile NPCs attack after player deals damage)
         if tool_name == "deal_damage":
             player = self.get_player_character(db)
             if player and player.current_location:
@@ -137,7 +163,7 @@ The following are here: {context_names}.
                     attack_result = world_tools.deal_damage(
                         db, attacker_name=npc.name, target_name=player.name
                     )
-                    npc_actions.append({npc.name: attack_result})
+                    npc_actions.append({f"{npc.name}_combat": attack_result})
                     db.commit()  # Commit each NPC action
 
         # --- Narrative Synthesis Step ---
@@ -159,3 +185,123 @@ The following are here: {context_names}.
             db.add(warden_log)
 
         db.commit()
+
+    def _check_proactive_npc_actions(self, db: Session):
+        """Occasionally have NPCs act independently"""
+        if random.random() < 0.05:  # 5% chance per turn
+            player = self.get_player_character(db)
+            if player and player.current_location:
+                npcs = (
+                    db.query(GameEntity)
+                    .filter(
+                        GameEntity.current_location_id == player.current_location_id,
+                        GameEntity.entity_type == "NPC",
+                        GameEntity.is_retired == False,  # noqa: E712
+                        GameEntity.id != player.id,
+                    )
+                    .all()
+                )
+                
+                if npcs:
+                    chosen_npc = random.choice(npcs)
+                    return self._generate_npc_proactive_action(chosen_npc, db)
+        
+        return None
+
+    def _generate_npc_proactive_action(self, npc: GameEntity, db: Session):
+        """Generate a proactive action for an NPC"""
+        # Get NPC relationship info for context
+        relationship_info = world_tools.get_npc_relationship_info(db, npc.name)
+        
+        context = f"""
+        NPC: {npc.name} - {npc.description}
+        Disposition: {npc.disposition}
+        Relationship: {relationship_info.get('relationship_type', 'neutral')}
+        Trust Level: {relationship_info.get('trust_level', 'cautious')}
+        Fear Level: {relationship_info.get('fear_level', 'none')}
+        """
+        
+        action_description = self.llm_service.generate_npc_reaction(
+            npc.name, npc.description, "acting independently", context
+        )
+        
+        return {f"{npc.name}_proactive": {"description": action_description}}
+
+    def _generate_npc_reactions(self, db: Session, player_input: str, tool_name: str, tool_result: dict):
+        """Generate NPC reactions to player actions"""
+        reactions = []
+        player = self.get_player_character(db)
+        
+        if not player or not player.current_location:
+            return reactions
+        
+        # Get all NPCs at the current location
+        npcs = (
+            db.query(GameEntity)
+            .filter(
+                GameEntity.current_location_id == player.current_location_id,
+                GameEntity.entity_type == "NPC",
+                GameEntity.is_retired == False,  # noqa: E712
+                GameEntity.id != player.id,
+            )
+            .all()
+        )
+        
+        for npc in npcs:
+            # Skip if this NPC is hostile and will attack anyway
+            if npc.is_hostile and tool_name == "deal_damage":
+                continue
+                
+            # Update relationships based on player actions
+            self._update_npc_relationship_for_action(db, npc, tool_name, tool_result)
+            
+            # Generate reaction based on the action
+            if self._should_npc_react(npc, tool_name):
+                relationship_info = world_tools.get_npc_relationship_info(db, npc.name)
+                
+                context = f"""
+                Player Action: {player_input}
+                Tool Used: {tool_name}
+                Result: {tool_result}
+                NPC Disposition: {npc.disposition}
+                Relationship: {relationship_info.get('relationship_type', 'neutral')}
+                """
+                
+                reaction = self.llm_service.generate_npc_reaction(
+                    npc.name, npc.description, player_input, context
+                )
+                
+                reactions.append({f"{npc.name}_reaction": {"description": reaction}})
+        
+        return reactions
+
+    def _update_npc_relationship_for_action(self, db: Session, npc: GameEntity, tool_name: str, tool_result: dict):
+        """Update NPC relationships based on player actions"""
+        if tool_name == "deal_damage" and not tool_result.get("error"):
+            # Witnessing violence makes NPCs fearful/hostile
+            target_name = tool_result.get("target_name", "")
+            if target_name != npc.name:  # NPC witnessed violence against someone else
+                world_tools.update_npc_relationship(
+                    db, npc.name, "witnessed_violence", -1,
+                    f"Disturbed by the violence against {target_name}",
+                    fear_change="increase"
+                )
+        elif tool_name == "give_item":
+            # Already handled in the give_item function
+            pass
+        elif tool_name == "rest":
+            # Peaceful actions might slightly improve relationships
+            world_tools.update_npc_relationship(
+                db, npc.name, "peaceful_action", 0,
+                "Noticed the peaceful behavior"
+            )
+
+    def _should_npc_react(self, npc: GameEntity, tool_name: str) -> bool:
+        """Determine if an NPC should react to a player action"""
+        # NPCs are more likely to react to dramatic actions
+        dramatic_actions = ["deal_damage", "give_item", "roll_saving_throw"]
+        
+        if tool_name in dramatic_actions:
+            return random.random() < 0.7  # 70% chance to react to dramatic actions
+        else:
+            return random.random() < 0.2  # 20% chance to react to other actions

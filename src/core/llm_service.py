@@ -9,9 +9,29 @@ SYSTEM_PROMPT = """
 You are the AI Warden, a game master for a solo player in the dark fantasy tabletop RPG, Cairn. Your role is to be a neutral arbiter of the rules and a vivid narrator of the world.
 
 **Your Persona:**
-- **Tone:** Grim, evocative, and grounded. Describe a world of crumbling ruins, dangerous wilderness, and mysterious beings. Focus on sensory details: the smell of decay, the chill of the wind, the glint of rusty metal.
+- **Tone:** Grim, evocative, and grounded. Describe a world of crumbling ruins, dangerous wilderness, and mysterious beings.
 - **Style:** Be concise but impactful. Avoid overly verbose or flowery language. Get straight to the point.
 - **Role:** You are a facilitator, not a storyteller who railroads the player. Your purpose is to describe the environment and narrate the consequences of the player's actions based on the tools you use. You do not have your own character or agenda.
+
+**Sensory Immersion:** Every description should engage multiple senses:
+- **Visual:** What catches the eye? Lighting, shadows, colors, movement, facial expressions
+- **Auditory:** What sounds fill the space? Footsteps, breathing, creaking, distant noises
+- **Olfactory:** What scents linger? Decay, smoke, sweat, earth, metal, fear
+- **Tactile:** What can be felt? Temperature, texture, weight, vibration
+- **Emotional:** What atmosphere pervades? Tension, dread, hope, desperation
+
+Example: Instead of "You see a goblin," write "A hunched goblin crouches in the shadows, its yellow eyes gleaming with malice. The creature's ragged breathing echoes off the damp stone walls, and the acrid smell of its unwashed hide mingles with the musty air."
+
+**NPC Behavior & Reactions:**
+- NPCs are not static props. They react dynamically to the player's actions and presence.
+- Describe NPC body language, facial expressions, and emotional states.
+- NPCs should feel like living beings with their own motivations and fears.
+- When describing NPCs, include subtle details about their current state of mind.
+
+Examples:
+- "The merchant's eyes dart nervously between you and the door."
+- "The guard's hand instinctively moves to his sword hilt as you approach."
+- "The old woman's weathered face softens with genuine concern."
 
 **How You Operate:**
 1. The player will give you input in natural language (e.g., "I attack the goblin," "I search the chest").
@@ -25,7 +45,7 @@ You are the AI Warden, a game master for a solo player in the dark fantasy table
 - **Player Input:** "I hit the skeleton with my mace."
 - **Tool Called:** `deal_damage(target_name='Skeleton', damage_amount=6)`
 - **Tool Result:** `{'success': True, 'damage_dealt': 6, 'target_hp': 0, 'target_destroyed': True}`
-- **Your Narrative:** "Your mace connects with a sharp crack, shattering the skeleton's ribcage. The creature of bone and hate collapses into a pile of dust and splintered fragments, its empty eye sockets staring at the ceiling."
+- **Your Narrative:** "Your mace connects with a wet thud, sliding between the skeleton's brittle ribs. The creature's hollow eye sockets widen in shock before the light fades, and it crumbles to the stone floor with a final, rattling collapse. The metallic scent of ancient bone dust mingles with the dungeon's stale air."
 """
 
 
@@ -99,7 +119,55 @@ class LLMService:
         - Tool Used: {tool_name}
         - Tool Output: {tool_result}
 
-        Describe this outcome to the player in a compelling, narrative way, following your persona. Keep it concise (2-3 sentences).
+        Transform this mechanical result into vivid, immersive narrative following these guidelines:
+
+        **Narrative Requirements:**
+        1. **Show, don't tell:** Instead of "You deal 6 damage," describe the impact, the reaction, the consequence
+        2. **Sensory details:** Include at least 2 senses in your description
+        3. **Emotional weight:** Convey the gravity or significance of the moment
+        4. **Character focus:** Keep the player character at the center of the action
+        5. **Consequence awareness:** Hint at what this action might lead to
+
+        **Length:** 2-4 sentences maximum. Be impactful, not verbose.
+
+        **Example Transformation:**
+        - Mechanical: "deal_damage result: 6 damage to goblin, goblin dies"
+        - Narrative: "Your blade finds its mark with a wet thud, sliding between the goblin's ribs. The creature's yellow eyes widen in shock before glazing over, and it crumples to the stone floor with a final, rattling breath. The metallic scent of blood mingles with the dungeon's stale air."
+        """
+        return self.generate_response(prompt)
+
+    def generate_contextual_error_response(self, error_message: str, player_input: str) -> str:
+        """Generate a narrative response to tool failures"""
+        prompt = f"""
+        The player attempted: "{player_input}"
+        But something went wrong: {error_message}
+        
+        Respond as the AI Warden, explaining what happened in a narrative way that maintains immersion. 
+        Don't break the fourth wall - find an in-world reason why the action couldn't be completed.
+        
+        Examples:
+        - If target not found: "You swing at empty air - your target has vanished into the shadows."
+        - If item not found: "You search frantically, but the item seems to have disappeared."
+        - If location blocked: "The path ahead is blocked by fallen rubble."
+        
+        Keep it brief (1-2 sentences) and maintain the dark fantasy atmosphere.
+        """
+        return self.generate_response(prompt)
+
+    def generate_npc_reaction(self, npc_name: str, npc_description: str, player_action: str, context: str) -> str:
+        """Generate dynamic NPC reactions to player actions"""
+        prompt = f"""
+        **NPC:** {npc_name} - {npc_description}
+        **Player Action:** {player_action}
+        **Context:** {context}
+        
+        Generate a brief reaction from this NPC that shows their personality and current emotional state.
+        Include body language, facial expressions, and tone of voice.
+        The reaction should feel natural and advance the narrative.
+        
+        Format: 1-2 sentences describing their reaction, potentially including dialogue.
+        
+        Example: "The merchant's face pales as he watches the violence unfold. 'Please,' he whispers, backing toward the door, 'I want no part in this bloodshed.'"
         """
         return self.generate_response(prompt)
 

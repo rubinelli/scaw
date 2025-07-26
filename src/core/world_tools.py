@@ -7,6 +7,7 @@ from sqlalchemy import func
 from database import models
 from .oracles import OracleRoller
 from .condition_tracker import ConditionTracker
+import datetime
 
 """
 This module defines the "World Tools" that the AI Warden can use to interact
@@ -358,6 +359,22 @@ def give_item(db: Session, giver_name: str, receiver_name: str, item_name: str) 
     item.owner_entity_id = receiver.id
     db.commit()
     
+    # Update NPC relationships based on the gift
+    player = _find_entity_by_name(db, "player")
+    if player:
+        if giver.id == player.id and receiver.entity_type == "NPC":
+            # Player gave item to NPC - positive relationship change
+            update_npc_relationship(
+                db, receiver.name, "received_gift", 1, 
+                f"Grateful for receiving {item_name}"
+            )
+        elif receiver.id == player.id and giver.entity_type == "NPC":
+            # NPC gave item to player - positive relationship change
+            update_npc_relationship(
+                db, giver.name, "gave_gift", 1,
+                f"Pleased to help by giving {item_name}"
+            )
+    
     # Check tension event conditions for item delivery
     condition_tracker = ConditionTracker(db)
     condition_tracker.check_all_conditions("item_delivery", {
@@ -647,4 +664,186 @@ def roll_saving_throw(db: Session, character_name: str, stat: str) -> Dict[str, 
         "stat_value": stat_value,
         "success": success,
         "message": f"{character.name} rolled a {roll} against their {stat} of {stat_value}. {'Success' if success else 'Failure'}!",
+    }
+
+
+# --- NPC Relationship Management Tools ---
+
+
+def _get_npc_relationship(npc: models.GameEntity) -> Dict[str, Any]:
+    """Helper function to parse NPC relationship data from bond field"""
+    if not npc.bond:
+        # Initialize default relationship
+        return {
+            "relationship_level": 0,
+            "relationship_type": "neutral",
+            "history": [],
+            "trust_level": "cautious",
+            "fear_level": "none"
+        }
+    
+    try:
+        return json.loads(npc.bond)
+    except (json.JSONDecodeError, TypeError):
+        # If bond contains old-style text, preserve it in history
+        return {
+            "relationship_level": 0,
+            "relationship_type": "neutral", 
+            "history": [{"action": "initial_bond", "impact": 0, "description": npc.bond}],
+            "trust_level": "cautious",
+            "fear_level": "none"
+        }
+
+
+def _set_npc_relationship(npc: models.GameEntity, relationship_data: Dict[str, Any]) -> None:
+    """Helper function to save NPC relationship data to bond field"""
+    npc.bond = json.dumps(relationship_data)
+
+
+def _get_relationship_type(level: int) -> str:
+    """Convert relationship level to descriptive type"""
+    if level <= -3:
+        return random.choice(["enemy", "rival", "nemesis"])
+    elif level <= -1:
+        return random.choice(["suspicious", "resentful", "disappointed"])
+    elif level == 0:
+        return random.choice(["indifferent", "professional", "cautious"])
+    elif level <= 2:
+        return random.choice(["respectful", "grateful", "fond"])
+    else:
+        return random.choice(["devoted", "loyal", "protective"])
+
+
+def _get_trust_level(relationship_level: int, fear_level: str) -> str:
+    """Determine trust level based on relationship and fear"""
+    if fear_level in ["afraid", "terrified"]:
+        return "distrustful"
+    elif relationship_level <= -2:
+        return "distrustful"
+    elif relationship_level <= 0:
+        return "cautious"
+    elif relationship_level <= 2:
+        return "trusting"
+    else:
+        return "devoted"
+
+
+def update_npc_relationship(
+    db: Session, 
+    npc_name: str, 
+    action_type: str, 
+    impact: int, 
+    description: str,
+    fear_change: str = None
+) -> Dict[str, Any]:
+    """
+    Updates an NPC's relationship with the player based on an action.
+    
+    Args:
+        db: The database session.
+        npc_name: The name of the NPC.
+        action_type: Type of action (e.g., "gave_item", "witnessed_violence", "helped").
+        impact: Relationship level change (-5 to +5).
+        description: Human-readable description of what happened.
+        fear_change: Optional fear level change ("increase", "decrease", "none").
+        
+    Returns:
+        A dictionary with the updated relationship information.
+    """
+    npc = _find_entity_by_name(db, npc_name)
+    if not npc or npc.entity_type not in ["NPC", "Character"]:
+        return {"error": f"NPC '{npc_name}' not found."}
+    
+    # Get current relationship
+    relationship = _get_npc_relationship(npc)
+    
+    # Update relationship level
+    old_level = relationship["relationship_level"]
+    new_level = max(-5, min(5, old_level + impact))
+    relationship["relationship_level"] = new_level
+    
+    # Update relationship type
+    relationship["relationship_type"] = _get_relationship_type(new_level)
+    
+    # Handle fear changes
+    if fear_change == "increase":
+        fear_levels = ["none", "wary", "afraid", "terrified"]
+        current_index = fear_levels.index(relationship.get("fear_level", "none"))
+        relationship["fear_level"] = fear_levels[min(3, current_index + 1)]
+    elif fear_change == "decrease":
+        fear_levels = ["none", "wary", "afraid", "terrified"]
+        current_index = fear_levels.index(relationship.get("fear_level", "none"))
+        relationship["fear_level"] = fear_levels[max(0, current_index - 1)]
+    
+    # Update trust level
+    relationship["trust_level"] = _get_trust_level(new_level, relationship["fear_level"])
+    
+    # Add to history
+    relationship["history"].append({
+        "action": action_type,
+        "impact": impact,
+        "description": description,
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    })
+    
+    # Keep only last 10 history entries
+    relationship["history"] = relationship["history"][-10:]
+    
+    # Update disposition based on relationship level
+    if new_level <= -3:
+        npc.disposition = "hostile"
+        npc.is_hostile = True
+    elif new_level <= -1:
+        npc.disposition = "unfriendly"
+        npc.is_hostile = False
+    elif new_level <= 2:
+        npc.disposition = "friendly"
+        npc.is_hostile = False
+    else:
+        npc.disposition = "allied"
+        npc.is_hostile = False
+    
+    # Save relationship data
+    _set_npc_relationship(npc, relationship)
+    db.commit()
+    
+    return {
+        "success": True,
+        "npc_name": npc.name,
+        "old_level": old_level,
+        "new_level": new_level,
+        "relationship_type": relationship["relationship_type"],
+        "trust_level": relationship["trust_level"],
+        "fear_level": relationship["fear_level"],
+        "disposition": npc.disposition,
+        "message": f"{npc.name}'s relationship changed from {old_level} to {new_level} ({relationship['relationship_type']})"
+    }
+
+
+def get_npc_relationship_info(db: Session, npc_name: str) -> Dict[str, Any]:
+    """
+    Retrieves detailed relationship information for an NPC.
+    
+    Args:
+        db: The database session.
+        npc_name: The name of the NPC.
+        
+    Returns:
+        A dictionary with the NPC's relationship information.
+    """
+    npc = _find_entity_by_name(db, npc_name)
+    if not npc or npc.entity_type not in ["NPC", "Character"]:
+        return {"error": f"NPC '{npc_name}' not found."}
+    
+    relationship = _get_npc_relationship(npc)
+    
+    return {
+        "npc_name": npc.name,
+        "relationship_level": relationship["relationship_level"],
+        "relationship_type": relationship["relationship_type"],
+        "trust_level": relationship["trust_level"],
+        "fear_level": relationship["fear_level"],
+        "disposition": npc.disposition,
+        "is_hostile": npc.is_hostile,
+        "recent_history": relationship["history"][-3:] if relationship["history"] else []
     }
