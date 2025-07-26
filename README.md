@@ -207,13 +207,11 @@ We welcome contributions! Please:
 # Install development dependencies
 pip install -r requirements.txt
 
-# Set up pre-commit hooks (optional)
-pre-commit install
 ```
 
 ## 📄 License
 
-This project is open source. Please respect the intellectual property of the Cairn RPG system.
+This project is open source under a [Creative Commons BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/) license. Please respect the intellectual property of the Cairn RPG system.
 
 ## 🙏 Credits
 
