@@ -96,6 +96,6 @@ def test_npc_reaction_non_attack(orchestrator, db_session):
     # Verify player's HP is unchanged
     assert player.hp == 10
 
-    # Verify narrative was generated
-    orchestrator.llm_service.generate_response.assert_called_once()
+    # Verify narrative was generated - now calls synthesize_narrative for successful tool actions
+    orchestrator.llm_service.synthesize_narrative.assert_called_once()
     assert db_session.query(LogEntry).filter_by(source="Warden").count() == 1

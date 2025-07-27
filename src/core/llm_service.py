@@ -108,12 +108,41 @@ class LLMService:
             return None
 
     def synthesize_narrative(
-        self, user_input: str, tool_name: str, tool_result: Dict[str, Any]
+        self, user_input: str, tool_name: str, tool_result: Dict[str, Any], db=None
     ) -> str:
         """
-        Generates a narrative description based on the outcome of a tool.
+        Generates a narrative description based on the outcome of a tool, including recent conversation history for context.
         """
+        # Get recent conversation history for context
+        conversation_context = ""
+        if db:
+            try:
+                from database.models import LogEntry
+                recent_entries = (
+                    db.query(LogEntry)
+                    .order_by(LogEntry.created_at.desc())
+                    .limit(6)  # Get last 6 entries (3 exchanges)
+                    .all()
+                )
+                
+                if recent_entries:
+                    # Reverse to get chronological order
+                    recent_entries.reverse()
+                    conversation_history = []
+                    for entry in recent_entries:
+                        conversation_history.append(f"{entry.source}: {entry.content}")
+                    
+                    conversation_context = f"""
+**RECENT CONVERSATION:**
+{chr(10).join(conversation_history)}
+
+"""
+            except Exception as e:
+                print(f"Error retrieving conversation history: {e}")
+                conversation_context = ""
+
         prompt = f"""
+        {conversation_context}**CURRENT ACTION:**
         The player performed an action: "{user_input}"
         This resulted in the following game event: 
         - Tool Used: {tool_name}
@@ -127,6 +156,7 @@ class LLMService:
         3. **Emotional weight:** Convey the gravity or significance of the moment
         4. **Character focus:** Keep the player character at the center of the action
         5. **Consequence awareness:** Hint at what this action might lead to
+        6. **Continuity:** Reference recent events or conversations when relevant to create narrative flow
 
         **Length:** 2-4 sentences maximum. Be impactful, not verbose.
 

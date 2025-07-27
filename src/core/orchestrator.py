@@ -56,7 +56,6 @@ class WardenOrchestrator:
                 db.query(GameEntity)
                 .filter(
                     GameEntity.current_location_id == player.current_location_id,
-                    # GameEntity.is_retired == False,  # noqa: E712
                     GameEntity.id != player.id,  # Exclude the player character
                 )
                 .all()
@@ -168,14 +167,32 @@ Present: {context_names}
 
         # --- Narrative Synthesis Step ---
         if player_action_result or npc_actions:
-            narrative_prompt = f"""
-            The player's action was: "{player_input}"
-            The result of their action was: {player_action_result}
-            After the player's action, the following NPCs reacted: {npc_actions}
+            # Use synthesize_narrative for tool-based actions with conversation context
+            if player_action_result and not player_action_result.get("error"):
+                warden_response = self.llm_service.synthesize_narrative(
+                    player_input, tool_name, player_action_result, db
+                )
+                
+                # If there were NPC reactions, append them to the narrative
+                if npc_actions:
+                    npc_narrative_prompt = f"""
+                    After the main action, the following NPCs reacted: {npc_actions}
+                    
+                    Add a brief continuation to describe these NPC reactions, maintaining the same 
+                    immersive style. Keep it to 1-2 sentences maximum.
+                    """
+                    npc_narrative = self.llm_service.generate_response(npc_narrative_prompt)
+                    warden_response += f" {npc_narrative}"
+            else:
+                # For errors or pure NPC actions, use the original approach
+                narrative_prompt = f"""
+                The player's action was: "{player_input}"
+                The result of their action was: {player_action_result}
+                After the player's action, the following NPCs reacted: {npc_actions}
 
-            Synthesize these events into a single, compelling narrative for the player.
-            """
-            warden_response = self.llm_service.generate_response(narrative_prompt)
+                Synthesize these events into a single, compelling narrative for the player.
+                """
+                warden_response = self.llm_service.generate_response(narrative_prompt)
         else:
             # If no tool was called and no NPCs reacted, get a standard response
             warden_response = self.llm_service.generate_response(player_input)

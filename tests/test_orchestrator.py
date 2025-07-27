@@ -59,8 +59,8 @@ def test_handle_input_tool_succeeds(orchestrator, db_session):
     orchestrator.handle_player_input("Roll a d6", db_session)
 
     orchestrator.llm_service.choose_tool.assert_called_once()
-    # The new logic calls generate_response instead of synthesize_narrative directly
-    orchestrator.llm_service.generate_response.assert_called_once()
+    # The new logic calls synthesize_narrative for successful tool actions
+    orchestrator.llm_service.synthesize_narrative.assert_called_once()
     assert db_session.query(LogEntry).count() == 2
 
 

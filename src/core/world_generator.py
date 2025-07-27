@@ -100,7 +100,7 @@ class WorldGenerator:
         Your task is to expand this basic concept into a rich, explorable area.
         Generate a JSON object with the following structure:
         1.  `summary`: A 2-3 sentence, evocative summary of the entire area. This will be shown to the player on the world map.
-        2.  `locations`: A list of 2 to 4 distinct, interconnected locations within this area. For each location, provide:
+        2.  `locations`: A list of 2 to 5 distinct, interconnected locations within this area. The first location is where the player arrives when they first enter the area. For each location, provide:
             *   `name`: A short, evocative name (e.g., "The Sunken Chapel", "Goblin Guard Post").
             *   `description`: A 2-4 sentence description of the location, focusing on sights, sounds, and smells.
             *   `contents`: A list of suggested creatures or items found here. Be specific (e.g., ["A rusty sword", "A hungry goblin with 3 HP"]). Keep it simple.
